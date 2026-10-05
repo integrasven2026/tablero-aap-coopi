@@ -175,29 +175,21 @@ def limpiar_canal(texto):
 
 
 def obtener_peso_fila(row_dict):
-  """Extrae el tipo de PQRS y el peso (cantidad) considerando cargas masivas
+  """Extrae el tipo de PQRS y el peso exacto (sumando cargas masivas de
 
-  de retroalimentaciones positivas.
+  retroalimentaciones positivas).
   """
-  # 1. Buscar si hay valor numérico en la carga masiva de retroalimentación positiva
-  val_pos = None
+  # 1. Buscar de forma robusta cualquier campo que sea la carga masiva de retroalimentación positiva
   for k, v in row_dict.items():
-    if 'retroalimentaci' in str(k).lower() and 'positiva' in str(k).lower():
-      val_pos = v
-      break
-
-  if val_pos is not None and str(val_pos).strip() not in [
-      '',
-      'none',
-      'null',
-      'nan',
-  ]:
-    try:
-      num_val = float(val_pos)
-      if num_val > 0:
-        return '1. Retroalimentación Positiva (Felicitaciones)', int(num_val)
-    except ValueError:
-      pass
+    k_low = str(k).lower()
+    if 'retroalimentaci' in k_low and 'positiva' in k_low:
+      if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
+        try:
+          num_val = int(float(v))
+          if num_val > 0:
+            return '1. Retroalimentación Positiva (Felicitaciones)', num_val
+        except ValueError:
+          pass
 
   # 2. Revisar campos normales de tipo de PQRS
   for k, v in row_dict.items():
@@ -358,7 +350,6 @@ def cargar_datos_aap(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    # Repetir o ponderar según el peso de la carga masiva
     for _ in range(peso):
       aap_rows.append({
           '_id': r.get('_id'),

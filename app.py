@@ -704,4 +704,64 @@ if not df_eval_aap.empty:
               orientation='h',
               yanchor='top',
               y=-0.35,
-              x
+              xanchor='center',
+              x=0.5,
+              font=dict(size=12),
+          ),
+          font=font_layout,
+          height=450,
+          margin=dict(l=10, r=10, t=10, b=80),
+      )
+      st.plotly_chart(fig_sat, width='stretch')
+    else:
+      st.info('No hay registros de satisfacción disponibles.')
+
+  # 2. Conocimiento del comportamiento esperado
+  with row1_c2:
+    st.markdown('### Conocimiento del comportamiento esperado')
+    comp_col = [
+        c
+        for c in df_eval_filtered.columns
+        if 'comportamiento' in c.lower() or 'esperado' in c.lower()
+    ]
+    if comp_col:
+      df_comp = df_eval_filtered[comp_col[0]].value_counts().reset_index()
+      df_comp.columns = ['Respuesta', 'Cantidad']
+    else:
+      df_comp = pd.DataFrame()
+
+    if not df_comp.empty and df_comp['Cantidad'].sum() > 0:
+      total_comp = df_comp['Cantidad'].sum()
+      df_comp['Etiqueta'] = df_comp['Cantidad'].apply(
+          lambda x: (
+              f'{x} ({(x / total_comp * 100):.1f}%)'
+              if total_comp > 0
+              else f'{x}'
+          )
+      )
+      fig_comp = px.bar(
+          df_comp,
+          x='Respuesta',
+          y='Cantidad',
+          text='Etiqueta',
+          color='Respuesta',
+          color_discrete_map={
+              'Sí': COLOR_VERDE_COOPI,
+              'Si': COLOR_VERDE_COOPI,
+              'No': COLOR_AZUL_COOPI,
+          },
+      )
+      fig_comp.update_traces(
+          textposition='outside', textfont=dict(color='#333333', size=14)
+      )
+      fig_comp.update_layout(
+          showlegend=False,
+          font=font_layout,
+          height=360,
+          margin=dict(l=10, r=10, t=10, b=10),
+      )
+      st.plotly_chart(fig_comp, width='stretch')
+    else:
+      st.info('No hay registros de comportamiento disponibles.')
+else:
+  st.info('Esperando registros del formulario de Indicadores AAP.')

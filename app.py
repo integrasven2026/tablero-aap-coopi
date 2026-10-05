@@ -174,30 +174,85 @@ def limpiar_canal(texto):
   return str(texto).strip().title()
 
 
-def limpiar_tipo_pqrs(texto):
-  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return '3. Demanda de información de Asistencia Humanitaria'
-  t = str(texto).strip()
-  t_lower = t.lower()
-  if t == '5_' or 'retroalimentaci' in t_lower or 'felicitacion' in t_lower:
-    return '1. Retroalimentación Positiva (Felicitaciones)'
-  elif t == '2' or 'solicitud' in t_lower:
-    return '2. Solicitud de Asistencia Humanitaria'
-  elif 'informacion' in t_lower or 'demanda' in t_lower or '3.' in t:
-    return '3. Demanda de información de Asistencia Humanitaria'
-  elif 'reclamo' in t_lower or '4.' in t:
-    return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
-  elif (
-      'queja' in t_lower
-      or '5.' in t
-      or 'abuso' in t_lower
-      or 'fraude' in t_lower
+def limpiar_tipo_pqrs(row_dict):
+  # Verificar si hay retroalimentación positiva registrada en _1_Retroalimentación...
+  val_pos = row_dict.get('_1_Retroalimentaci_n_tiva_Felicitaciones')
+  if (
+      val_pos is not None
+      and str(val_pos).strip() != ''
+      and str(val_pos).lower() not in ['none', 'null', 'nan']
   ):
-    return (
-        '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude y'
-        ' Corrupción)'
-    )
-  return t
+    try:
+      if float(val_pos) > 0:
+        return '1. Retroalimentación Positiva (Felicitaciones)'
+    except ValueError:
+      return '1. Retroalimentación Positiva (Felicitaciones)'
+
+  # Buscar en campos de tipo de retroalimentación
+  for k, v in row_dict.items():
+    if v is None or str(v).strip() in ['', 'none', 'null', 'nan']:
+      continue
+    k_low = str(k).lower()
+    v_str = str(v).strip()
+    v_low = v_str.lower()
+
+    if (
+        'tipopqrs' in k_low
+        or 'retroalimentacion' in k_low
+        or 'tipo' in k_low
+        or 'pqrs' in k_low
+    ):
+      if (
+          v_str == '5_'
+          or 'retroalimentaci' in v_low
+          or 'felicitacion' in v_low
+      ):
+        return '1. Retroalimentación Positiva (Felicitaciones)'
+      elif v_str == '2' or 'solicitud' in v_low:
+        return '2. Solicitud de Asistencia Humanitaria'
+      elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
+        return '3. Demanda de información de Asistencia Humanitaria'
+      elif 'reclamo' in v_low or '4.' in v_str:
+        return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
+      elif (
+          'queja' in v_low
+          or '5.' in v_str
+          or 'abuso' in v_low
+          or 'fraude' in v_low
+      ):
+        return (
+            '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+            ' y Corrupción)'
+        )
+
+    # Revisar si se llenó la sección de Reclamos o Quejas
+    if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
+    if 'queja' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return (
+          '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+          ' y Corrupción)'
+      )
+    if (
+        '_2_solicitudes_de_asistencia' in k_low
+        and v_low not in ['', 'none', 'null', 'nan']
+    ):
+      return '2. Solicitud de Asistencia Humanitaria'
+    if 'petici_n_pregunta' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '3. Demanda de información de Asistencia Humanitaria'
+
+  return '3. Demanda de información de Asistencia Humanitaria'
+
+
+def limpiar_colaborador(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Carlos Mesa'
+  t = str(texto).strip().lower()
+  if 'daisy' in t:
+    return 'Daisy Benites'
+  elif 'carlos' in t:
+    return 'Carlos Mesa'
+  return str(texto).strip().title()
 
 
 def limpiar_estatus_caso(texto):
@@ -257,11 +312,16 @@ def cargar_datos_aap(
   aap_rows = []
   for r in data:
     canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
-    tipo_pqrs_raw = extraer_campo_dinamico(
-        r,
-        ['tipo', 'retroalimentacion', 'pqrs'],
-        '3. Demanda de información de Asistencia Humanitaria',
+    tipo_pqrs = limpiar_tipo_pqrs(r)
+
+    # Extraer colaborador (Daisy o Carlos)
+    colab_raw = (
+        r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
+        or r.get('colaborador')
+        or 'carlos_mesa'
     )
+    colab = limpiar_colaborador(colab_raw)
+
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
     socio_val = str(
@@ -290,7 +350,8 @@ def cargar_datos_aap(
     aap_rows.append({
         '_id': r.get('_id'),
         'Canal': limpiar_canal(canal_raw),
-        'Tipo_PQRS': limpiar_tipo_pqrs(tipo_pqrs_raw),
+        'Tipo_PQRS': tipo_pqrs,
+        'Colaborador': colab,
         'Estado_Caso': estado_caso,
         'Fecha': fecha_aap,
         'Discapacidad': discapacidad,
@@ -464,11 +525,11 @@ with aap_c2:
   st.markdown('### Tipos de PQRS Recibidos')
   if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
     df_tipo = df_aap_filtered['Tipo_PQRS'].value_counts().reset_index()
-    df_tipo.columns = ['Tipo', 'Cantidad']
+    df_tipo.columns = ['Tipo_PQRS', 'Cantidad']
 
     fig_tipo = px.pie(
         df_tipo,
-        names='Tipo',
+        names='Tipo_PQRS',
         values='Cantidad',
         hole=0.4,
         color_discrete_sequence=PALETA_COOPI,

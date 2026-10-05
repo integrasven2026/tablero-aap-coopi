@@ -509,16 +509,16 @@ with aap_c1:
         text='Etiqueta',
         color_discrete_sequence=[COLOR_AZUL_COOPI],
     )
-    # Valores dentro de las barras para evitar solapamientos
+    # Valores FUERA de las barras con tamaño estandarizado
     fig_canal.update_traces(
-        textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+        textposition='outside', textfont=dict(color='#333333', size=14)
     )
     fig_canal.update_layout(
         xaxis_title='Número de PQRS',
         yaxis_title='',
         font=font_layout,
         height=320,
-        margin=dict(l=10, r=10, t=10, b=10),
+        margin=dict(l=10, r=40, t=10, b=10),
     )
     st.plotly_chart(fig_canal, width='stretch')
   else:
@@ -537,24 +537,26 @@ with aap_c2:
         hole=0.4,
         color_discrete_sequence=PALETA_COOPI,
     )
-    # Mostrar solo porcentaje y valor en la torta (sin nombre de variable repetido)
+    # Valores y porcentajes FUERA de la torta, sin repetir el nombre y con letra legible (size=14)
     fig_tipo.update_traces(
         textinfo='percent+value',
-        textposition='inside',
+        textposition='outside',
+        textfont=dict(size=14),
     )
-    # Leyenda abajo ubicada horizontalmente centrada
+    # Leyenda abajo ubicada horizontalmente centrada con tamaño uniforme
     fig_tipo.update_layout(
         showlegend=True,
         legend=dict(
             orientation='h',
             yanchor='top',
-            y=-0.25,
+            y=-0.35,
             xanchor='center',
             x=0.5,
+            font=dict(size=12),
         ),
         font=font_layout,
-        height=400,
-        margin=dict(l=10, r=10, t=10, b=50),
+        height=450,
+        margin=dict(l=10, r=10, t=10, b=80),
     )
     st.plotly_chart(fig_tipo, width='stretch')
   else:
@@ -616,7 +618,7 @@ with aap_c4:
         color_discrete_map=MAPA_COLORES_ESTADO,
     )
     fig_est_aap.update_traces(
-        textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+        textposition='outside', textfont=dict(color='#333333', size=14)
     )
     fig_est_aap.update_layout(
         xaxis_title='Estado de Resolución',
@@ -624,6 +626,7 @@ with aap_c4:
         showlegend=False,
         font=font_layout,
         height=320,
+        margin=dict(l=10, r=10, t=10, b=10),
     )
     st.plotly_chart(fig_est_aap, width='stretch')
   else:
@@ -674,13 +677,22 @@ if not df_eval_aap.empty:
           hole=0.4,
           color_discrete_sequence=PALETA_COOPI,
       )
-      fig_sat.update_traces(textinfo='percent+value', textposition='inside')
+      fig_sat.update_traces(
+          textinfo='percent+value', textposition='outside', textfont=dict(size=14)
+      )
       fig_sat.update_layout(
           showlegend=True,
-          legend=dict(orientation='h', yanchor='top', y=-0.25, xanchor='center', x=0.5),
+          legend=dict(
+              orientation='h',
+              yanchor='top',
+              y=-0.35,
+              xanchor='center',
+              x=0.5,
+              font=dict(size=12),
+          ),
           font=font_layout,
-          height=400,
-          margin=dict(l=10, r=10, t=10, b=50),
+          height=450,
+          margin=dict(l=10, r=10, t=10, b=80),
       )
       st.plotly_chart(fig_sat, width='stretch')
     else:
@@ -722,7 +734,7 @@ if not df_eval_aap.empty:
           },
       )
       fig_comp.update_traces(
-          textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+          textposition='outside', textfont=dict(color='#333333', size=14)
       )
       fig_comp.update_layout(
           showlegend=False,

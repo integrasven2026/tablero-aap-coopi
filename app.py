@@ -74,8 +74,13 @@ with col_header_title:
   )
 
 with col_header_logo:
-  URL_LOGO_COOPI = 'https://raw.githubusercontent.com/integrasven2026/tablero-aap-coopi/main/coopi.jpg'
-  posibles_nombres = ['coopi.jpg', 'Coopi.jpg', 'coopi_logo.jpg']
+  URL_LOGO_COOPI = 'https://raw.githubusercontent.com/integrasven2026/tablero-aap-coopi/main/logo_coopi.jpg'
+  posibles_nombres = [
+      'logo_coopi.jpg',
+      'coopi.jpg',
+      'Coopi.jpg',
+      'coopi_logo.jpg',
+  ]
   logo_path = None
   for nombre in posibles_nombres:
     if os.path.exists(nombre):
@@ -91,7 +96,7 @@ with col_header_logo:
     try:
       st.image(URL_LOGO_COOPI, width=200)
     except Exception:
-      st.warning("⚠️ Sube tu imagen 'coopi.jpg' al repositorio.")
+      st.warning("⚠️ Sube tu imagen 'logo_coopi.jpg' al repositorio.")
 
 st.markdown('---')
 
@@ -140,9 +145,7 @@ def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
   return 0
 
 
-def extraer_campo_dinamico(
-    row_dict, palabras_clave, valor_defecto='Buzón'
-):
+def extraer_campo_dinamico(row_dict, palabras_clave, valor_defecto='Buzón'):
   for key, value in row_dict.items():
     if value is None or str(value).strip() == '':
       continue
@@ -184,8 +187,16 @@ def limpiar_tipo_pqrs(texto):
     return '3. Demanda de información de Asistencia Humanitaria'
   elif 'reclamo' in t_lower or '4.' in t:
     return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
-  elif 'queja' in t_lower or '5.' in t:
-    return '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude y Corrupción)'
+  elif (
+      'queja' in t_lower
+      or '5.' in t
+      or 'abuso' in t_lower
+      or 'fraude' in t_lower
+  ):
+    return (
+        '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude y'
+        ' Corrupción)'
+    )
   return t
 
 
@@ -247,7 +258,9 @@ def cargar_datos_aap(
   for r in data:
     canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
     tipo_pqrs_raw = extraer_campo_dinamico(
-        r, ['tipo', 'retroalimentacion', 'pqrs'], '3. Demanda de información de Asistencia Humanitaria'
+        r,
+        ['tipo', 'retroalimentacion', 'pqrs'],
+        '3. Demanda de información de Asistencia Humanitaria',
     )
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
@@ -349,280 +362,4 @@ if st.sidebar.button('🔄 Actualizar Datos', width='stretch'):
 
 st.sidebar.markdown('---')
 
-socios_disp = ['COOPI'] + sorted(
-    [x for x in df_aap_raw['Socio'].unique() if x and x != 'COOPI']
-)
-socio_aap_sel = st.sidebar.selectbox('Organización / Socio:', socios_disp, index=0)
-
-meses_ordenados = sorted(
-    [m for m in df_aap_raw['Mes_Reporte'].unique() if m != 'Sin Fecha']
-)
-if 'Sin Fecha' in df_aap_raw['Mes_Reporte'].values:
-  meses_ordenados.append('Sin Fecha')
-meses_disp = ['Todos'] + meses_ordenados
-mes_sel = st.sidebar.selectbox('Mes del Reporte:', meses_disp)
-
-estados_disp = ['Todos'] + sorted(
-    [x for x in df_aap_raw['Estado_Geo'].dropna().unique() if x]
-)
-estado_sel = st.sidebar.selectbox('Estado Geográfico:', estados_disp)
-
-lista_poblacion_interes = [
-    'TODOS',
-    'Personas con Discapacidad',
-    'Niñas',
-    'Niños',
-    'Comunidad Indígena',
-    'LGBTIQ+',
-    'Embarazadas / Lactantes',
-]
-poblacion_sel = st.sidebar.selectbox('Población de Interés:', lista_poblacion_interes)
-
-# APLICAR FILTROS AAP (PQRS)
-df_aap_filtered = df_aap_raw.copy()
-if socio_aap_sel != 'TODOS':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Socio'] == socio_aap_sel]
-if mes_sel != 'Todos':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Mes_Reporte'] == mes_sel]
-if estado_sel != 'Todos':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Estado_Geo'] == estado_sel]
-
-if poblacion_sel == 'Personas con Discapacidad':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Discapacidad'] == 1]
-elif poblacion_sel == 'Niñas':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nina'] == 1]
-elif poblacion_sel == 'Niños':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nino'] == 1]
-elif poblacion_sel == 'Comunidad Indígena':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Indigena'] == 1]
-elif poblacion_sel == 'LGBTIQ+':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['LGBTIQ'] == 1]
-elif poblacion_sel == 'Embarazadas / Lactantes':
-  df_aap_filtered = df_aap_filtered[df_aap_filtered['Embarazada'] == 1]
-
-total_pqrs = len(df_aap_filtered)
-pct_meta_pqrs = (total_pqrs / META_5_PORCIENTO) * 100
-
-# -----------------------------------------------------------------------------
-# SECCIÓN 1: MÉTRICAS GENERALES DE PQRS
-# -----------------------------------------------------------------------------
-st.subheader(f'Resumen de Rendición de Cuentas - {socio_aap_sel}')
-
-m_c1, m_c2, m_c3 = st.columns(3)
-m_c1.metric('Total PQRS Registradas', f'{total_pqrs:,}')
-m_c2.metric('Meta 5% (Beneficiarios)', f'{int(META_5_PORCIENTO):,}')
-m_c3.metric('% Cumplimiento Meta PQRS', f'{pct_meta_pqrs:.2f}%')
-
-st.markdown('---')
-
-# -----------------------------------------------------------------------------
-# SECCIÓN 2: GRÁFICOS DE PQRS
-# -----------------------------------------------------------------------------
-aap_c1, aap_c2 = st.columns(2)
-
-with aap_c1:
-  st.markdown('### Canal más utilizado por los participantes')
-  if total_pqrs > 0 and 'Canal' in df_aap_filtered.columns:
-    df_canal = df_aap_filtered['Canal'].value_counts().reset_index()
-    df_canal.columns = ['Canal', 'Cantidad']
-    df_canal = df_canal.sort_values(by='Cantidad', ascending=True)
-    df_canal['Porcentaje'] = (df_canal['Cantidad'] / total_pqrs) * 100
-    df_canal['Etiqueta'] = df_canal.apply(
-        lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
-    )
-
-    fig_canal = px.bar(
-        df_canal,
-        y='Canal',
-        x='Cantidad',
-        orientation='h',
-        text='Etiqueta',
-        color_discrete_sequence=[COLOR_AZUL_COOPI],
-    )
-    fig_canal.update_traces(textposition='outside')
-    fig_canal.update_layout(
-        xaxis_title='Número de PQRS', yaxis_title='', font=font_layout, height=320
-    )
-    st.plotly_chart(fig_canal, width='stretch')
-  else:
-    st.info('No hay datos de canales registrados.')
-
-with aap_c2:
-  st.markdown('### Tipos de PQRS Recibidos')
-  if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
-    df_tipo = df_aap_filtered['Tipo_PQRS'].value_counts().reset_index()
-    df_tipo.columns = ['Tipo', 'Cantidad']
-
-    fig_tipo = px.pie(
-        df_tipo,
-        names='Tipo',
-        values='Cantidad',
-        hole=0.4,
-        color_discrete_sequence=PALETA_COOPI,
-    )
-    fig_tipo.update_traces(textinfo='label+value+percent')
-    fig_tipo.update_layout(showlegend=True, font=font_layout, height=320)
-    st.plotly_chart(fig_tipo, width='stretch')
-  else:
-    st.info('No hay datos de tipos de PQRS.')
-
-st.markdown('<br>', unsafe_allow_html=True)
-
-aap_c3, aap_c4 = st.columns(2)
-
-with aap_c3:
-  st.markdown('### Participantes Atendidos por Mes')
-  if total_pqrs > 0 and 'Mes_Reporte' in df_aap_filtered.columns:
-    df_mes_aap = (
-        df_aap_filtered.groupby('Mes_Reporte', sort=False)
-        .size()
-        .reset_index(name='Atendidos')
-    )
-    df_mes_aap['Porcentaje'] = (df_mes_aap['Atendidos'] / total_pqrs) * 100
-    df_mes_aap['Etiqueta'] = df_mes_aap.apply(
-        lambda r: f"{r['Atendidos']} ({r['Porcentaje']:.0f}%)", axis=1
-    )
-
-    fig_mes_aap = px.area(
-        df_mes_aap,
-        x='Mes_Reporte',
-        y='Atendidos',
-        text='Etiqueta',
-        color_discrete_sequence=[COLOR_VERDE_COOPI],
-    )
-    fig_mes_aap.update_traces(textposition='top center')
-    fig_mes_aap.update_layout(
-        xaxis_title='Mes', yaxis_title='PQRS Recibidos', font=font_layout, height=320
-    )
-    st.plotly_chart(fig_mes_aap, width='stretch')
-  else:
-    st.info('No hay datos de temporalidad.')
-
-with aap_c4:
-  st.markdown('### Seguimiento a los Casos')
-  if total_pqrs > 0 and 'Estado_Caso' in df_aap_filtered.columns:
-    df_est_aap = df_aap_filtered['Estado_Caso'].value_counts().reset_index()
-    df_est_aap.columns = ['Estado', 'Cantidad']
-    df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_pqrs) * 100
-    df_est_aap['Etiqueta'] = df_est_aap.apply(
-        lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
-    )
-
-    MAPA_COLORES_ESTADO = {
-        'En Proceso': COLOR_VERDE_COOPI,
-        'Cerrado': COLOR_AZUL_COOPI,
-    }
-
-    fig_est_aap = px.bar(
-        df_est_aap,
-        x='Estado',
-        y='Cantidad',
-        text='Etiqueta',
-        color='Estado',
-        color_discrete_map=MAPA_COLORES_ESTADO,
-    )
-    fig_est_aap.update_traces(textposition='outside')
-    fig_est_aap.update_layout(
-        xaxis_title='Estado de Resolución',
-        yaxis_title='Casos',
-        showlegend=False,
-        font=font_layout,
-        height=320,
-    )
-    st.plotly_chart(fig_est_aap, width='stretch')
-  else:
-    st.info('No hay datos de seguimiento de casos.')
-
-st.markdown('---')
-
-# -----------------------------------------------------------------------------
-# SECCIÓN 3: INDICADORES AAP (EVALUACIÓN DE SATISFACCIÓN)
-# -----------------------------------------------------------------------------
-st.markdown(
-    "<h2 style='color: #0072CE;'>Indicadores de Satisfacción y Conocimiento"
-    ' AAP</h2>',
-    unsafe_allow_html=True,
-)
-st.caption('Resultados de encuestas de retroalimentación y satisfacción')
-
-if not df_eval_aap.empty:
-  df_eval_filtered = df_eval_aap.copy()
-  tot_part_eval = len(df_eval_filtered)
-  pct_meta_eval = (tot_part_eval / META_5_PORCIENTO) * 100
-
-  col_ind_tot, col_ind_meta = st.columns([1, 1])
-  col_ind_tot.metric('Total Evaluaciones AAP', f'{tot_part_eval:,}')
-  col_ind_meta.metric(
-      '% Meta Evaluaciones (5% de 32 mil)', f'{pct_meta_eval:.2f}%'
-  )
-
-  st.markdown('<br>', unsafe_allow_html=True)
-
-  row1_c1, row1_c2 = st.columns(2)
-
-  # 1. Satisfacción
-  with row1_c1:
-    st.markdown('### Satisfacción de los participantes')
-    sat_col = [c for c in df_eval_filtered.columns if 'satisfac' in c.lower()]
-    if sat_col:
-      df_sat = df_eval_filtered[sat_col[0]].value_counts().reset_index()
-      df_sat.columns = ['Nivel', 'Cantidad']
-    else:
-      df_sat = pd.DataFrame()
-
-    if not df_sat.empty and df_sat['Cantidad'].sum() > 0:
-      fig_sat = px.pie(
-          df_sat,
-          names='Nivel',
-          values='Cantidad',
-          hole=0.4,
-          color_discrete_sequence=PALETA_COOPI,
-      )
-      fig_sat.update_traces(textinfo='label+value+percent')
-      fig_sat.update_layout(showlegend=False, font=font_layout, height=360)
-      st.plotly_chart(fig_sat, width='stretch')
-    else:
-      st.info('No hay registros de satisfacción disponibles.')
-
-  # 2. Conocimiento del comportamiento esperado
-  with row1_c2:
-    st.markdown('### Conocimiento del comportamiento esperado')
-    comp_col = [
-        c
-        for c in df_eval_filtered.columns
-        if 'comportamiento' in c.lower() or 'esperado' in c.lower()
-    ]
-    if comp_col:
-      df_comp = df_eval_filtered[comp_col[0]].value_counts().reset_index()
-      df_comp.columns = ['Respuesta', 'Cantidad']
-    else:
-      df_comp = pd.DataFrame()
-
-    if not df_comp.empty and df_comp['Cantidad'].sum() > 0:
-      total_comp = df_comp['Cantidad'].sum()
-      df_comp['Etiqueta'] = df_comp['Cantidad'].apply(
-          lambda x: (
-              f'{x} ({(x / total_comp * 100):.1f}%)'
-              if total_comp > 0
-              else f'{x}'
-          )
-      )
-      fig_comp = px.bar(
-          df_comp,
-          x='Respuesta',
-          y='Cantidad',
-          text='Etiqueta',
-          color='Respuesta',
-          color_discrete_map={
-              'Sí': COLOR_VERDE_COOPI,
-              'Si': COLOR_VERDE_COOPI,
-              'No': COLOR_AZUL_COOPI,
-          },
-      )
-      fig_comp.update_traces(textposition='outside')
-      fig_comp.update_layout(showlegend=False, font=font_layout, height=360)
-      st.plotly_chart(fig_comp, width='stretch')
-    else:
-      st.info('No hay registros de comportamiento disponibles.')
-else:
-  st.info('Esperando registros del formulario de Indicadores AAP.')
+soci

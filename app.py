@@ -416,4 +416,183 @@ try:
 except Exception:
   KOBO_TOKEN = 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
 
-ASSET_ID_AAP = 'aRbFg8ig
+ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'
+ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'
+
+df_aap_raw = cargar_datos_aap(ASSET_ID_AAP, KOBO_TOKEN)
+df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
+
+# -----------------------------------------------------------------------------
+# FILTROS EN LA BARRA LATERAL
+# -----------------------------------------------------------------------------
+st.sidebar.header('Filtros AAP - COOPI')
+
+if st.sidebar.button('🔄 Actualizar Datos', width='stretch'):
+  st.cache_data.clear()
+  st.rerun()
+
+st.sidebar.markdown('---')
+
+socios_disp = ['COOPI'] + sorted(
+    [x for x in df_aap_raw['Socio'].unique() if x and x != 'COOPI']
+)
+socio_aap_sel = st.sidebar.selectbox('Organización / Socio:', socios_disp, index=0)
+
+meses_ordenados = sorted(
+    [m for m in df_aap_raw['Mes_Reporte'].unique() if m != 'Sin Fecha']
+)
+if 'Sin Fecha' in df_aap_raw['Mes_Reporte'].values:
+  meses_ordenados.append('Sin Fecha')
+meses_disp = ['Todos'] + meses_ordenados
+mes_sel = st.sidebar.selectbox('Mes del Reporte:', meses_disp)
+
+estados_disp = ['Todos'] + sorted(
+    [x for x in df_aap_raw['Estado_Geo'].dropna().unique() if x]
+)
+estado_sel = st.sidebar.selectbox('Estado Geográfico:', estados_disp)
+
+lista_poblacion_interes = [
+    'TODOS',
+    'Personas con Discapacidad',
+    'Niñas',
+    'Niños',
+    'Comunidad Indígena',
+    'LGBTIQ+',
+    'Embarazadas / Lactantes',
+]
+poblacion_sel = st.sidebar.selectbox('Población de Interés:', lista_poblacion_interes)
+
+# APLICAR FILTROS AAP (PQRS)
+df_aap_filtered = df_aap_raw.copy()
+if socio_aap_sel != 'TODOS':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Socio'] == socio_aap_sel]
+if mes_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Mes_Reporte'] == mes_sel]
+if estado_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Estado_Geo'] == estado_sel]
+
+if poblacion_sel == 'Personas con Discapacidad':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Discapacidad'] == 1]
+elif poblacion_sel == 'Niñas':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nina'] == 1]
+elif poblacion_sel == 'Niños':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nino'] == 1]
+elif poblacion_sel == 'Comunidad Indígena':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Indigena'] == 1]
+elif poblacion_sel == 'LGBTIQ+':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['LGBTIQ'] == 1]
+elif poblacion_sel == 'Embarazadas / Lactantes':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Embarazada'] == 1]
+
+total_pqrs = len(df_aap_filtered)
+pct_meta_pqrs = (total_pqrs / META_5_PORCIENTO) * 100
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 1: MÉTRICAS GENERALES DE PQRS
+# -----------------------------------------------------------------------------
+st.subheader(f'Resumen de Rendición de Cuentas - {socio_aap_sel}')
+
+m_c1, m_c2, m_c3 = st.columns(3)
+m_c1.metric('Total PQRS Registradas', f'{total_pqrs:,}')
+m_c2.metric('Meta 5% (Beneficiarios)', f'{int(META_5_PORCIENTO):,}')
+m_c3.metric('% Cumplimiento Meta PQRS', f'{pct_meta_pqrs:.2f}%')
+
+st.markdown('---')
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 2: GRÁFICOS DE PQRS
+# -----------------------------------------------------------------------------
+aap_c1, aap_c2 = st.columns(2)
+
+with aap_c1:
+  st.markdown('### Canal más utilizado por los participantes')
+  if total_pqrs > 0 and 'Canal' in df_aap_filtered.columns:
+    df_canal = df_aap_filtered['Canal'].value_counts().reset_index()
+    df_canal.columns = ['Canal', 'Cantidad']
+    df_canal = df_canal.sort_values(by='Cantidad', ascending=True)
+    df_canal['Porcentaje'] = (df_canal['Cantidad'] / total_pqrs) * 100
+    df_canal['Etiqueta'] = df_canal.apply(
+        lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
+    )
+
+    fig_canal = px.bar(
+        df_canal,
+        y='Canal',
+        x='Cantidad',
+        orientation='h',
+        text='Etiqueta',
+        color_discrete_sequence=[COLOR_AZUL_COOPI],
+    )
+    fig_canal.update_traces(
+        textposition='outside', textfont=dict(color='#333333', size=14)
+    )
+    fig_canal.update_layout(
+        xaxis_title='Número de PQRS',
+        yaxis_title='',
+        font=font_layout,
+        height=320,
+        margin=dict(l=10, r=40, t=10, b=10),
+    )
+    st.plotly_chart(fig_canal, width='stretch')
+  else:
+    st.info('No hay datos de canales registrados.')
+
+with aap_c2:
+  st.markdown('### Tipos de PQRS Recibidos')
+  if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
+    df_tipo = df_aap_filtered['Tipo_PQRS'].value_counts().reset_index()
+    df_tipo.columns = ['Tipo_PQRS', 'Cantidad']
+    df_tipo = df_tipo.sort_values(by='Cantidad', ascending=True)
+    df_tipo['Porcentaje'] = (df_tipo['Cantidad'] / total_pqrs) * 100
+    df_tipo['Etiqueta'] = df_tipo.apply(
+        lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.1f}%)", axis=1
+    )
+
+    fig_tipo = px.bar(
+        df_tipo,
+        y='Tipo_PQRS',
+        x='Cantidad',
+        orientation='h',
+        text='Etiqueta',
+        color_discrete_sequence=[COLOR_AZUL_COOPI],
+    )
+    fig_tipo.update_traces(
+        textposition='outside', textfont=dict(color='#333333', size=13)
+    )
+    fig_tipo.update_layout(
+        xaxis_title='Número de PQRS',
+        yaxis_title='',
+        font=font_layout,
+        height=400,
+        margin=dict(l=10, r=60, t=10, b=10),
+    )
+    st.plotly_chart(fig_tipo, width='stretch')
+  else:
+    st.info('No hay datos de tipos de PQRS.')
+
+st.markdown('<br>', unsafe_allow_html=True)
+
+aap_c3, aap_c4 = st.columns(2)
+
+with aap_c3:
+  st.markdown('### Participantes Atendidos por Mes')
+  if total_pqrs > 0 and 'Mes_Reporte' in df_aap_filtered.columns:
+    df_mes_aap = (
+        df_aap_filtered.groupby('Mes_Reporte', sort=False)
+        .size()
+        .reset_index(name='Atendidos')
+    )
+    df_mes_aap['Porcentaje'] = (df_mes_aap['Atendidos'] / total_pqrs) * 100
+    df_mes_aap['Etiqueta'] = df_mes_aap.apply(
+        lambda r: f"{r['Atendidos']} ({r['Porcentaje']:.0f}%)", axis=1
+    )
+
+    fig_mes_aap = px.area(
+        df_mes_aap,
+        x='Mes_Reporte',
+        y='Atendidos',
+        text='Etiqueta',
+        color_discrete_sequence=[COLOR_VERDE_COOPI],
+    )
+    fig_mes_aap.update_traces(
+        textposition='top center', textfont=dict(size=13

@@ -176,10 +176,6 @@ def limpiar_canal(texto):
 
 
 def obtener_peso_fila(row_dict):
-  """Extrae el tipo de PQRS y asigna el peso exacto sumando
-
-  las cantidades de la variable de carga masiva de retroalimentación positiva.
-  """
   peso = 1
   tipo_detectado = None
 
@@ -246,7 +242,7 @@ def limpiar_colaborador(texto):
 
 def limpiar_estatus_caso(texto):
   if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return 'Abierto'
+    return 'Sin Especificar'
   t = str(texto).strip().title()
   if 'abiert' in t.lower():
     return 'Abierto'
@@ -267,7 +263,7 @@ def extraer_estatus_caso_especifico(row_dict):
           and p in str(key).lower()
       ):
         return limpiar_estatus_caso(str(value))
-  return 'Abierto'
+  return 'Sin Especificar'
 
 
 def extraer_fecha_aap(row_dict):
@@ -337,13 +333,32 @@ def cargar_datos_aap(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    for _ in range(peso):
+    # Nota: El estatus del caso se mantiene con la fila base (peso 1) para reflejar exactamente el estado real del registro en Kobo
+    aap_rows.append({
+        '_id': r.get('_id'),
+        'Canal': limpiar_canal(canal_raw),
+        'Tipo_PQRS': tipo_pqrs,
+        'Colaborador': colab,
+        'Estado_Caso': estado_caso,
+        'Fecha': fecha_aap,
+        'Discapacidad': discapacidad,
+        'Indigena': indigena,
+        'LGBTIQ': lgbtiq,
+        'Embarazada': embarazada,
+        'Es_Nina': es_nina,
+        'Es_Nino': es_nino,
+        'Socio': socio_val,
+        'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+    })
+
+    # Para los gráficos de tipo y total, sí replicamos según el peso de la carga masiva
+    for _ in range(peso - 1):
       aap_rows.append({
           '_id': r.get('_id'),
           'Canal': limpiar_canal(canal_raw),
           'Tipo_PQRS': tipo_pqrs,
           'Colaborador': colab,
-          'Estado_Caso': estado_caso,
+          'Estado_Caso': 'Sin Especificar',
           'Fecha': fecha_aap,
           'Discapacidad': discapacidad,
           'Indigena': indigena,
@@ -587,9 +602,15 @@ with aap_c3:
 with aap_c4:
   st.markdown('### Seguimiento a los Casos')
   if total_pqrs > 0 and 'Estado_Caso' in df_aap_filtered.columns:
-    df_est_aap = df_aap_filtered['Estado_Caso'].value_counts().reset_index()
+    # Filtrar para mostrar estados específicos de resolución
+    df_est_aap = df_aap_filtered[
+        df_aap_filtered['Estado_Caso'].isin(['Abierto', 'Cerrado', 'En Proceso'])
+    ]
+    df_est_aap = df_est_aap['Estado_Caso'].value_counts().reset_index()
     df_est_aap.columns = ['Estado', 'Cantidad']
-    df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_pqrs) * 100
+    
+    total_est_val = df_est_aap['Cantidad'].sum() if not df_est_aap.empty else 1
+    df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_est_val) * 100
     df_est_aap['Etiqueta'] = df_est_aap.apply(
         lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
     )

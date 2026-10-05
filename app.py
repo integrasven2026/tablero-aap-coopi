@@ -175,11 +175,14 @@ def limpiar_canal(texto):
 
 
 def obtener_peso_fila(row_dict):
-  """Extrae el tipo de PQRS y el peso exacto (sumando cargas masivas de
+  """Extrae el tipo de PQRS y asigna el peso exacto sumando
 
-  retroalimentaciones positivas).
+  las cantidades de la variable de carga masiva de retroalimentación positiva.
   """
-  # 1. Buscar de forma robusta cualquier campo que sea la carga masiva de retroalimentación positiva
+  peso = 1
+  tipo_detectado = None
+
+  # 1. Buscar valor numérico directo en la variable de retroalimentación positiva (carga masiva)
   for k, v in row_dict.items():
     k_low = str(k).lower()
     if 'retroalimentaci' in k_low and 'positiva' in k_low:
@@ -191,43 +194,18 @@ def obtener_peso_fila(row_dict):
         except ValueError:
           pass
 
-  # 2. Revisar campos normales de tipo de PQRS
+  # 2. Revisar si el tipo seleccionado indica retroalimentación positiva
   for k, v in row_dict.items():
-    if v is None or str(v).strip() in ['', 'none', 'null', 'nan']:
-      continue
     k_low = str(k).lower()
     v_str = str(v).strip()
     v_low = v_str.lower()
-
-    if (
-        'tipopqrs' in k_low
-        or 'retroalimentacion' in k_low
-        or 'tipo' in k_low
-        or 'pqrs' in k_low
-    ):
+    if 'tipopqrs' in k_low or 'tipo' in k_low or 'pqrs' in k_low:
       if (
           v_str == '5_'
           or 'retroalimentaci' in v_low
           or 'felicitacion' in v_low
       ):
         return '1. Retroalimentación Positiva (Felicitaciones)', 1
-      elif v_str == '2' or 'solicitud' in v_low:
-        return '2. Solicitud de Asistencia Humanitaria', 1
-      elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
-        return '3. Demanda de información de Asistencia Humanitaria', 1
-      elif 'reclamo' in v_low or '4.' in v_str:
-        return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
-      elif (
-          'queja' in v_low
-          or '5.' in v_str
-          or 'abuso' in v_low
-          or 'fraude' in v_low
-      ):
-        return (
-            '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
-            ' y Corrupción)',
-            1,
-        )
 
     if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
       return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
@@ -244,6 +222,14 @@ def obtener_peso_fila(row_dict):
       return '2. Solicitud de Asistencia Humanitaria', 1
     if 'petici_n_pregunta' in k_low and v_low not in ['', 'none', 'null', 'nan']:
       return '3. Demanda de información de Asistencia Humanitaria', 1
+
+    if v_str == '2' or 'solicitud' in v_low:
+      tipo_detectado = '2. Solicitud de Asistencia Humanitaria'
+    elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
+      tipo_detectado = '3. Demanda de información de Asistencia Humanitaria'
+
+  if tipo_detectado:
+    return tipo_detectado, 1
 
   return '3. Demanda de información de Asistencia Humanitaria', 1
 

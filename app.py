@@ -174,19 +174,32 @@ def limpiar_canal(texto):
   return str(texto).strip().title()
 
 
-def limpiar_tipo_pqrs(row_dict):
-  val_pos = row_dict.get('_1_Retroalimentaci_n_tiva_Felicitaciones')
-  if (
-      val_pos is not None
-      and str(val_pos).strip() != ''
-      and str(val_pos).lower() not in ['none', 'null', 'nan']
-  ):
-    try:
-      if float(val_pos) > 0:
-        return '1. Retroalimentación Positiva (Felicitaciones)'
-    except ValueError:
-      return '1. Retroalimentación Positiva (Felicitaciones)'
+def obtener_peso_fila(row_dict):
+  """Extrae el tipo de PQRS y el peso (cantidad) considerando cargas masivas
 
+  de retroalimentaciones positivas.
+  """
+  # 1. Buscar si hay valor numérico en la carga masiva de retroalimentación positiva
+  val_pos = None
+  for k, v in row_dict.items():
+    if 'retroalimentaci' in str(k).lower() and 'positiva' in str(k).lower():
+      val_pos = v
+      break
+
+  if val_pos is not None and str(val_pos).strip() not in [
+      '',
+      'none',
+      'null',
+      'nan',
+  ]:
+    try:
+      num_val = float(val_pos)
+      if num_val > 0:
+        return '1. Retroalimentación Positiva (Felicitaciones)', int(num_val)
+    except ValueError:
+      pass
+
+  # 2. Revisar campos normales de tipo de PQRS
   for k, v in row_dict.items():
     if v is None or str(v).strip() in ['', 'none', 'null', 'nan']:
       continue
@@ -205,13 +218,13 @@ def limpiar_tipo_pqrs(row_dict):
           or 'retroalimentaci' in v_low
           or 'felicitacion' in v_low
       ):
-        return '1. Retroalimentación Positiva (Felicitaciones)'
+        return '1. Retroalimentación Positiva (Felicitaciones)', 1
       elif v_str == '2' or 'solicitud' in v_low:
-        return '2. Solicitud de Asistencia Humanitaria'
+        return '2. Solicitud de Asistencia Humanitaria', 1
       elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
-        return '3. Demanda de información de Asistencia Humanitaria'
+        return '3. Demanda de información de Asistencia Humanitaria', 1
       elif 'reclamo' in v_low or '4.' in v_str:
-        return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
+        return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
       elif (
           'queja' in v_low
           or '5.' in v_str
@@ -220,25 +233,27 @@ def limpiar_tipo_pqrs(row_dict):
       ):
         return (
             '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
-            ' y Corrupción)'
+            ' y Corrupción)',
+            1,
         )
 
     if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
-      return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
+      return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
     if 'queja' in k_low and v_low not in ['', 'none', 'null', 'nan']:
       return (
           '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
-          ' y Corrupción)'
+          ' y Corrupción)',
+          1,
       )
     if (
         '_2_solicitudes_de_asistencia' in k_low
         and v_low not in ['', 'none', 'null', 'nan']
     ):
-      return '2. Solicitud de Asistencia Humanitaria'
+      return '2. Solicitud de Asistencia Humanitaria', 1
     if 'petici_n_pregunta' in k_low and v_low not in ['', 'none', 'null', 'nan']:
-      return '3. Demanda de información de Asistencia Humanitaria'
+      return '3. Demanda de información de Asistencia Humanitaria', 1
 
-  return '3. Demanda de información de Asistencia Humanitaria'
+  return '3. Demanda de información de Asistencia Humanitaria', 1
 
 
 def limpiar_colaborador(texto):
@@ -309,7 +324,7 @@ def cargar_datos_aap(
   aap_rows = []
   for r in data:
     canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
-    tipo_pqrs = limpiar_tipo_pqrs(r)
+    tipo_pqrs, peso = obtener_peso_fila(r)
 
     colab_raw = (
         r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
@@ -343,22 +358,24 @@ def cargar_datos_aap(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    aap_rows.append({
-        '_id': r.get('_id'),
-        'Canal': limpiar_canal(canal_raw),
-        'Tipo_PQRS': tipo_pqrs,
-        'Colaborador': colab,
-        'Estado_Caso': estado_caso,
-        'Fecha': fecha_aap,
-        'Discapacidad': discapacidad,
-        'Indigena': indigena,
-        'LGBTIQ': lgbtiq,
-        'Embarazada': embarazada,
-        'Es_Nina': es_nina,
-        'Es_Nino': es_nino,
-        'Socio': socio_val,
-        'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
-    })
+    # Repetir o ponderar según el peso de la carga masiva
+    for _ in range(peso):
+      aap_rows.append({
+          '_id': r.get('_id'),
+          'Canal': limpiar_canal(canal_raw),
+          'Tipo_PQRS': tipo_pqrs,
+          'Colaborador': colab,
+          'Estado_Caso': estado_caso,
+          'Fecha': fecha_aap,
+          'Discapacidad': discapacidad,
+          'Indigena': indigena,
+          'LGBTIQ': lgbtiq,
+          'Embarazada': embarazada,
+          'Es_Nina': es_nina,
+          'Es_Nino': es_nino,
+          'Socio': socio_val,
+          'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+      })
 
   df_aap = pd.DataFrame(aap_rows)
   if not df_aap.empty and 'Fecha' in df_aap.columns:
@@ -509,7 +526,6 @@ with aap_c1:
         text='Etiqueta',
         color_discrete_sequence=[COLOR_AZUL_COOPI],
     )
-    # Valores FUERA de las barras con tamaño estandarizado
     fig_canal.update_traces(
         textposition='outside', textfont=dict(color='#333333', size=14)
     )
@@ -537,13 +553,9 @@ with aap_c2:
         hole=0.4,
         color_discrete_sequence=PALETA_COOPI,
     )
-    # Valores y porcentajes FUERA de la torta, sin repetir el nombre y con letra legible (size=14)
     fig_tipo.update_traces(
-        textinfo='percent+value',
-        textposition='outside',
-        textfont=dict(size=14),
+        textinfo='percent+value', textposition='outside', textfont=dict(size=14)
     )
-    # Leyenda abajo ubicada horizontalmente centrada con tamaño uniforme
     fig_tipo.update_layout(
         showlegend=True,
         legend=dict(

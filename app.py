@@ -8,19 +8,18 @@ import requests
 import streamlit as st
 
 # -----------------------------------------------------------------------------
-# PALETA DE COLORES OFICIAL COOPI / AAP
+# PALETA DE COLORES OFICIAL COOPI
 # -----------------------------------------------------------------------------
-COLOR_AGUAMARINA = '#17C3B2'  # Verde / Azul Agua Marina
-COLOR_ROSADO_AAP = '#D89FE3'  # Morado / Rosado Orquídea para Reporte AAP
-COLOR_VERDE_ABIERTO = '#28A745'  # Verde para Casos Abiertos / En Proceso
-COLOR_AMARILLO_MOSTAZA = '#E5B130'  # Amarillo Mostaza para Indicadores AAP
+COLOR_AZUL_COOPI = '#0072CE'
+COLOR_VERDE_COOPI = '#009639'
+COLOR_AZUL_OSCURO = '#08327D'
 
-PALETA_INTEGRAS = [
-    COLOR_AGUAMARINA,
-    COLOR_ROSADO_AAP,
-    COLOR_AMARILLO_MOSTAZA,
-    '#08327D',
-    '#0072CE',
+PALETA_COOPI = [
+    COLOR_AZUL_COOPI,
+    COLOR_VERDE_COOPI,
+    COLOR_AZUL_OSCURO,
+    '#17C3B2',
+    '#D89FE3',
 ]
 
 # -----------------------------------------------------------------------------
@@ -49,7 +48,7 @@ st.markdown(
 
     .titulo-principal {
         font-family: 'Now', 'Montserrat', sans-serif !important;
-        color: #D89FE3 !important;
+        color: #0072CE !important;
         margin-bottom: 5px !important;
         font-weight: 800 !important;
         font-size: 2.2rem !important;
@@ -60,46 +59,39 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# ENCABEZADO Y LOGO
+# ENCABEZADO Y LOGO DE COOPI
 # -----------------------------------------------------------------------------
 col_header_title, col_header_logo = st.columns([3, 1])
 
 with col_header_title:
-    st.markdown(
-        "<h1 class='titulo-principal'>PQRS COOPI Venezuela</h1>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '**Organización:** COOPI | **Módulo:** Rendición de Cuentas y AAP'
-    )
+  st.markdown(
+      "<h1 class='titulo-principal'>PQRS COOPI Venezuela</h1>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      '**Organización:** COOPI (Cooperazione Internazionale) | **Módulo:'
+      ' Rendición de Cuentas y AAP**'
+  )
 
 with col_header_logo:
-    posibles_nombres = [
-        'integras.jpg',
-        'Integras.jpg',
-        'Integras_logo.jpg',
-        'integras_logo.jpg',
-        'coopi.jpg',
-        'Coopi.jpg',
-    ]
-    logo_path = None
-    for nombre in posibles_nombres:
-        if os.path.exists(nombre):
-            logo_path = nombre
-            break
+  URL_LOGO_COOPI = 'https://raw.githubusercontent.com/integrasven2026/tablero-aap-coopi/main/coopi.jpg'
+  posibles_nombres = ['coopi.jpg', 'Coopi.jpg', 'coopi_logo.jpg']
+  logo_path = None
+  for nombre in posibles_nombres:
+    if os.path.exists(nombre):
+      logo_path = nombre
+      break
 
-    URL_LOGO_GITHUB = 'https://raw.githubusercontent.com/integrasven2026/3.Tablero-integras-2026/main/integras.jpg'
-
-    if logo_path:
-        try:
-            st.image(logo_path, width=150)
-        except Exception:
-            pass
-    else:
-        try:
-            st.image(URL_LOGO_GITHUB, width=150)
-        except Exception:
-            pass
+  if logo_path:
+    try:
+      st.image(logo_path, width=200)
+    except Exception:
+      pass
+  else:
+    try:
+      st.image(URL_LOGO_COOPI, width=200)
+    except Exception:
+      st.warning("⚠️ Sube tu imagen 'coopi.jpg' al repositorio.")
 
 st.markdown('---')
 
@@ -135,7 +127,7 @@ font_layout = dict(family='Quicksand', size=13)
 
 
 # -----------------------------------------------------------------------------
-# FUNCIONES AUXILIARES
+# FUNCIONES AUXILIARES DE LIMPIEZA
 # -----------------------------------------------------------------------------
 def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
   val_afirmativos = ['sí', 'si', 'yes', '1', 's', 'true']
@@ -149,27 +141,60 @@ def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
 
 
 def extraer_campo_dinamico(
-    row_dict, palabras_clave, valor_defecto='Sin especificar'
+    row_dict, palabras_clave, valor_defecto='Buzón / Presencial'
 ):
   for key, value in row_dict.items():
     if value is None or str(value).strip() == '':
       continue
     key_lower = str(key).lower()
     if any(pc.lower() in key_lower for pc in palabras_clave):
-      return str(value).strip()
+      val_str = str(value).strip()
+      if val_str.lower() not in ['none', 'null', '']:
+        return val_str
   return valor_defecto
 
 
-def limpiar_texto_categoria(texto):
-  if not texto:
-    return 'Sin Especificar'
-  texto_limpio = re.sub(r'[\d_]+', ' ', str(texto)).strip()
-  texto_limpio = re.sub(r'\s+', ' ', texto_limpio)
-  return texto_limpio.title() if texto_limpio else 'Sin Especificar'
+def limpiar_canal(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Buzón / Presencial'
+  t = str(texto).strip().title()
+  if 'buz' in t.lower():
+    return 'Buzón'
+  if 'telefon' in t.lower() or 'llamada' in t.lower():
+    return 'Línea Telefónica'
+  if 'mensaje' in t.lower() or 'text' in t.lower() or 'whatsapp' in t.lower():
+    return 'Mensaje de Texto / WhatsApp'
+  return t
+
+
+def limpiar_tipo_pqrs(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Información'
+  t = str(texto).strip().title()
+  if 'inform' in t.lower():
+    return 'Información'
+  if 'reclamo' in t.lower():
+    return 'Reclamo'
+  if 'queja' in t.lower():
+    return 'Queja'
+  if 'felicit' in t.lower() or 'suger' in t.lower():
+    return 'Sugerencias / Felicitaciones'
+  return t
+
+
+def limpiar_estatus_caso(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'En Proceso / Abierto'
+  t = str(texto).strip().title()
+  if 'abiert' in t.lower() or 'proceso' in t.lower() or 'pend' in t.lower():
+    return 'En Proceso / Abierto'
+  if 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
+    return 'Cerrado / Resuelto'
+  return t
 
 
 def extraer_estatus_caso_especifico(row_dict):
-  prioridades = ['estatus', 'seguimiento', 'resolucion']
+  prioridades = ['estatus', 'seguimiento', 'resolucion', 'estado_caso']
   for p in prioridades:
     for key, value in row_dict.items():
       if (
@@ -177,8 +202,8 @@ def extraer_estatus_caso_especifico(row_dict):
           and str(value).strip() != ''
           and p in str(key).lower()
       ):
-        return str(value).strip()
-  return 'Recibido'
+        return limpiar_estatus_caso(str(value))
+  return 'En Proceso / Abierto'
 
 
 def extraer_fecha_aap(row_dict):
@@ -193,7 +218,7 @@ def extraer_fecha_aap(row_dict):
 
 
 # -----------------------------------------------------------------------------
-# CARGA DE DATOS DESDE KOBOTOOLBOX (AAP / PQRS & INDICADORES AAP)
+# CARGA DE DATOS DESDE KOBOTOOLBOX
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def cargar_datos_aap(
@@ -213,9 +238,9 @@ def cargar_datos_aap(
 
   aap_rows = []
   for r in data:
-    canal = extraer_campo_dinamico(r, ['canal'], 'Buzón')
+    canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
     tipo_pqrs_raw = extraer_campo_dinamico(
-        r, ['tipo', 'retroalimentacion'], 'Información'
+        r, ['tipo', 'retroalimentacion', 'pqrs'], 'Información'
     )
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
@@ -244,9 +269,9 @@ def cargar_datos_aap(
 
     aap_rows.append({
         '_id': r.get('_id'),
-        'Canal': limpiar_texto_categoria(canal),
-        'Tipo_PQRS': limpiar_texto_categoria(tipo_pqrs_raw),
-        'Estado_Caso': limpiar_texto_categoria(estado_caso),
+        'Canal': limpiar_canal(canal_raw),
+        'Tipo_PQRS': limpiar_tipo_pqrs(tipo_pqrs_raw),
+        'Estado_Caso': estado_caso,
         'Fecha': fecha_aap,
         'Discapacidad': discapacidad,
         'Indigena': indigena,
@@ -292,9 +317,11 @@ def cargar_datos_indicadores_aap(
     return pd.DataFrame()
 
 
-# Credenciales y IDs de KoboToolbox (puedes ajustarlos o mantenerlos desde st.secrets)
+# Credenciales y IDs de KoboToolbox
 try:
-  KOBO_TOKEN = st.secrets.get('KOBO_TOKEN', 'a18c017a2e697f4ea1272375dae261ccec6b19d7')
+  KOBO_TOKEN = st.secrets.get(
+      'KOBO_TOKEN', 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
+  )
 except Exception:
   KOBO_TOKEN = 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
 
@@ -305,9 +332,9 @@ df_aap_raw = cargar_datos_aap(ASSET_ID_AAP, KOBO_TOKEN)
 df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
 
 # -----------------------------------------------------------------------------
-# FILTROS EN LA BARRA LATERAL (CONFIGURADOS EXCLUSIVOS PARA COOPI)
+# FILTROS EN LA BARRA LATERAL
 # -----------------------------------------------------------------------------
-st.sidebar.header('Configuración y Filtros AAP')
+st.sidebar.header('Filtros AAP - COOPI')
 
 if st.sidebar.button('🔄 Actualizar Datos', width='stretch'):
   st.cache_data.clear()
@@ -315,7 +342,6 @@ if st.sidebar.button('🔄 Actualizar Datos', width='stretch'):
 
 st.sidebar.markdown('---')
 
-# Filtrar por defecto para COOPI, permitiendo ver el resto si se desea
 socios_disp = ['COOPI'] + sorted(
     [x for x in df_aap_raw['Socio'].unique() if x and x != 'COOPI']
 )
@@ -404,7 +430,7 @@ with aap_c1:
         x='Cantidad',
         orientation='h',
         text='Etiqueta',
-        color_discrete_sequence=[COLOR_AGUAMARINA],
+        color_discrete_sequence=[COLOR_AZUL_COOPI],
     )
     fig_canal.update_traces(textposition='outside')
     fig_canal.update_layout(
@@ -425,7 +451,7 @@ with aap_c2:
         names='Tipo',
         values='Cantidad',
         hole=0.4,
-        color_discrete_sequence=PALETA_INTEGRAS,
+        color_discrete_sequence=PALETA_COOPI,
     )
     fig_tipo.update_traces(textinfo='label+value+percent')
     fig_tipo.update_layout(showlegend=True, font=font_layout, height=320)
@@ -455,7 +481,7 @@ with aap_c3:
         x='Mes_Reporte',
         y='Atendidos',
         text='Etiqueta',
-        color_discrete_sequence=['#08327D'],
+        color_discrete_sequence=[COLOR_VERDE_COOPI],
     )
     fig_mes_aap.update_traces(textposition='top center')
     fig_mes_aap.update_layout(
@@ -470,18 +496,14 @@ with aap_c4:
   if total_pqrs > 0 and 'Estado_Caso' in df_aap_filtered.columns:
     df_est_aap = df_aap_filtered['Estado_Caso'].value_counts().reset_index()
     df_est_aap.columns = ['Estado', 'Cantidad']
-    df_est_aap = df_est_aap[df_est_aap['Estado'].str.lower() != 'recibido']
     df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_pqrs) * 100
     df_est_aap['Etiqueta'] = df_est_aap.apply(
         lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
     )
 
     MAPA_COLORES_ESTADO = {
-        'Abierto': COLOR_VERDE_ABIERTO,
-        'En Proceso': COLOR_VERDE_ABIERTO,
-        'Pendiente': COLOR_VERDE_ABIERTO,
-        'Cerrado': '#08327D',
-        'Atendido': COLOR_AGUAMARINA,
+        'En Proceso / Abierto': COLOR_VERDE_COOPI,
+        'Cerrado / Resuelto': COLOR_AZUL_COOPI,
     }
 
     fig_est_aap = px.bar(
@@ -510,7 +532,8 @@ st.markdown('---')
 # SECCIÓN 3: INDICADORES AAP (EVALUACIÓN DE SATISFACCIÓN)
 # -----------------------------------------------------------------------------
 st.markdown(
-    "<h2 style='color: #D89FE3;'>Indicadores de Satisfacción y Conocimiento AAP</h2>",
+    "<h2 style='color: #0072CE;'>Indicadores de Satisfacción y Conocimiento"
+    ' AAP</h2>',
     unsafe_allow_html=True,
 )
 st.caption('Resultados de encuestas de retroalimentación y satisfacción')
@@ -537,7 +560,6 @@ if not df_eval_aap.empty:
     if sat_col:
       df_sat = df_eval_filtered[sat_col[0]].value_counts().reset_index()
       df_sat.columns = ['Nivel', 'Cantidad']
-      df_sat['Nivel'] = df_sat['Nivel'].apply(limpiar_texto_categoria)
     else:
       df_sat = pd.DataFrame()
 
@@ -547,12 +569,7 @@ if not df_eval_aap.empty:
           names='Nivel',
           values='Cantidad',
           hole=0.4,
-          color_discrete_sequence=[
-              '#08327D',
-              '#0072CE',
-              COLOR_AGUAMARINA,
-              COLOR_ROSADO_AAP,
-          ],
+          color_discrete_sequence=PALETA_COOPI,
       )
       fig_sat.update_traces(textinfo='label+value+percent')
       fig_sat.update_layout(showlegend=False, font=font_layout, height=360)
@@ -571,7 +588,6 @@ if not df_eval_aap.empty:
     if comp_col:
       df_comp = df_eval_filtered[comp_col[0]].value_counts().reset_index()
       df_comp.columns = ['Respuesta', 'Cantidad']
-      df_comp['Respuesta'] = df_comp['Respuesta'].apply(limpiar_texto_categoria)
     else:
       df_comp = pd.DataFrame()
 
@@ -590,7 +606,11 @@ if not df_eval_aap.empty:
           y='Cantidad',
           text='Etiqueta',
           color='Respuesta',
-          color_discrete_map={'Sí': COLOR_AGUAMARINA, 'No': COLOR_ROSADO_AAP},
+          color_discrete_map={
+              'Sí': COLOR_VERDE_COOPI,
+              'Si': COLOR_VERDE_COOPI,
+              'No': COLOR_AZUL_COOPI,
+          },
       )
       fig_comp.update_traces(textposition='outside')
       fig_comp.update_layout(showlegend=False, font=font_layout, height=360)

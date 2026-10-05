@@ -175,7 +175,6 @@ def limpiar_canal(texto):
 
 
 def limpiar_tipo_pqrs(row_dict):
-  # Verificar si hay retroalimentación positiva registrada en _1_Retroalimentación...
   val_pos = row_dict.get('_1_Retroalimentaci_n_tiva_Felicitaciones')
   if (
       val_pos is not None
@@ -188,7 +187,6 @@ def limpiar_tipo_pqrs(row_dict):
     except ValueError:
       return '1. Retroalimentación Positiva (Felicitaciones)'
 
-  # Buscar en campos de tipo de retroalimentación
   for k, v in row_dict.items():
     if v is None or str(v).strip() in ['', 'none', 'null', 'nan']:
       continue
@@ -225,7 +223,6 @@ def limpiar_tipo_pqrs(row_dict):
             ' y Corrupción)'
         )
 
-    # Revisar si se llenó la sección de Reclamos o Quejas
     if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
       return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
     if 'queja' in k_low and v_low not in ['', 'none', 'null', 'nan']:
@@ -314,7 +311,6 @@ def cargar_datos_aap(
     canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
     tipo_pqrs = limpiar_tipo_pqrs(r)
 
-    # Extraer colaborador (Daisy o Carlos)
     colab_raw = (
         r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
         or r.get('colaborador')
@@ -513,9 +509,16 @@ with aap_c1:
         text='Etiqueta',
         color_discrete_sequence=[COLOR_AZUL_COOPI],
     )
-    fig_canal.update_traces(textposition='outside')
+    # Valores dentro de las barras para evitar solapamientos
+    fig_canal.update_traces(
+        textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+    )
     fig_canal.update_layout(
-        xaxis_title='Número de PQRS', yaxis_title='', font=font_layout, height=320
+        xaxis_title='Número de PQRS',
+        yaxis_title='',
+        font=font_layout,
+        height=320,
+        margin=dict(l=10, r=10, t=10, b=10),
     )
     st.plotly_chart(fig_canal, width='stretch')
   else:
@@ -534,8 +537,25 @@ with aap_c2:
         hole=0.4,
         color_discrete_sequence=PALETA_COOPI,
     )
-    fig_tipo.update_traces(textinfo='label+value+percent')
-    fig_tipo.update_layout(showlegend=True, font=font_layout, height=320)
+    # Mostrar solo porcentaje y valor en la torta (sin nombre de variable repetido)
+    fig_tipo.update_traces(
+        textinfo='percent+value',
+        textposition='inside',
+    )
+    # Leyenda abajo ubicada horizontalmente centrada
+    fig_tipo.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.25,
+            xanchor='center',
+            x=0.5,
+        ),
+        font=font_layout,
+        height=400,
+        margin=dict(l=10, r=10, t=10, b=50),
+    )
     st.plotly_chart(fig_tipo, width='stretch')
   else:
     st.info('No hay datos de tipos de PQRS.')
@@ -595,7 +615,9 @@ with aap_c4:
         color='Estado',
         color_discrete_map=MAPA_COLORES_ESTADO,
     )
-    fig_est_aap.update_traces(textposition='outside')
+    fig_est_aap.update_traces(
+        textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+    )
     fig_est_aap.update_layout(
         xaxis_title='Estado de Resolución',
         yaxis_title='Casos',
@@ -652,8 +674,14 @@ if not df_eval_aap.empty:
           hole=0.4,
           color_discrete_sequence=PALETA_COOPI,
       )
-      fig_sat.update_traces(textinfo='label+value+percent')
-      fig_sat.update_layout(showlegend=False, font=font_layout, height=360)
+      fig_sat.update_traces(textinfo='percent+value', textposition='inside')
+      fig_sat.update_layout(
+          showlegend=True,
+          legend=dict(orientation='h', yanchor='top', y=-0.25, xanchor='center', x=0.5),
+          font=font_layout,
+          height=400,
+          margin=dict(l=10, r=10, t=10, b=50),
+      )
       st.plotly_chart(fig_sat, width='stretch')
     else:
       st.info('No hay registros de satisfacción disponibles.')
@@ -693,8 +721,15 @@ if not df_eval_aap.empty:
               'No': COLOR_AZUL_COOPI,
           },
       )
-      fig_comp.update_traces(textposition='outside')
-      fig_comp.update_layout(showlegend=False, font=font_layout, height=360)
+      fig_comp.update_traces(
+          textposition='inside', insidetextanchor='middle', textfont=dict(color='white', size=13)
+      )
+      fig_comp.update_layout(
+          showlegend=False,
+          font=font_layout,
+          height=360,
+          margin=dict(l=10, r=10, t=10, b=10),
+      )
       st.plotly_chart(fig_comp, width='stretch')
     else:
       st.info('No hay registros de comportamiento disponibles.')

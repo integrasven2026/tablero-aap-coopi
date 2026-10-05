@@ -333,7 +333,6 @@ def cargar_datos_aap(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    # Nota: El estatus del caso se mantiene con la fila base (peso 1) para reflejar exactamente el estado real del registro en Kobo
     aap_rows.append({
         '_id': r.get('_id'),
         'Canal': limpiar_canal(canal_raw),
@@ -351,7 +350,6 @@ def cargar_datos_aap(
         'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
     })
 
-    # Para los gráficos de tipo y total, sí replicamos según el peso de la carga masiva
     for _ in range(peso - 1):
       aap_rows.append({
           '_id': r.get('_id'),
@@ -591,9 +589,17 @@ with aap_c3:
         text='Etiqueta',
         color_discrete_sequence=[COLOR_VERDE_COOPI],
     )
-    fig_mes_aap.update_traces(textposition='top center')
+    fig_mes_aap.update_traces(
+        textposition='top center', textfont=dict(size=13, color='#333333')
+    )
     fig_mes_aap.update_layout(
-        xaxis_title='Mes', yaxis_title='PQRS Recibidos', font=font_layout, height=320
+        xaxis_title='Mes',
+        yaxis_title='PQRS Recibidos',
+        font=font_layout,
+        height=320,
+        margin=dict(
+            l=20, r=30, t=35, b=10
+        ),  # Margen superior incrementado para ver etiquetas completas
     )
     st.plotly_chart(fig_mes_aap, width='stretch')
   else:
@@ -602,13 +608,12 @@ with aap_c3:
 with aap_c4:
   st.markdown('### Seguimiento a los Casos')
   if total_pqrs > 0 and 'Estado_Caso' in df_aap_filtered.columns:
-    # Filtrar para mostrar estados específicos de resolución
     df_est_aap = df_aap_filtered[
         df_aap_filtered['Estado_Caso'].isin(['Abierto', 'Cerrado', 'En Proceso'])
     ]
     df_est_aap = df_est_aap['Estado_Caso'].value_counts().reset_index()
     df_est_aap.columns = ['Estado', 'Cantidad']
-    
+
     total_est_val = df_est_aap['Cantidad'].sum() if not df_est_aap.empty else 1
     df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_est_val) * 100
     df_est_aap['Etiqueta'] = df_est_aap.apply(

@@ -13,6 +13,7 @@ import streamlit as st
 COLOR_AZUL_COOPI = '#0072CE'
 COLOR_VERDE_COOPI = '#009639'
 COLOR_AZUL_OSCURO = '#08327D'
+COLOR_NARANJA_ABIERTO = '#E67E22'
 
 PALETA_COOPI = [
     COLOR_AZUL_COOPI,
@@ -182,7 +183,6 @@ def obtener_peso_fila(row_dict):
   peso = 1
   tipo_detectado = None
 
-  # 1. Buscar valor numérico directo en la variable de retroalimentación positiva (carga masiva)
   for k, v in row_dict.items():
     k_low = str(k).lower()
     if 'retroalimentaci' in k_low and 'positiva' in k_low:
@@ -194,7 +194,6 @@ def obtener_peso_fila(row_dict):
         except ValueError:
           pass
 
-  # 2. Revisar si el tipo seleccionado indica retroalimentación positiva
   for k, v in row_dict.items():
     k_low = str(k).lower()
     v_str = str(v).strip()
@@ -247,11 +246,13 @@ def limpiar_colaborador(texto):
 
 def limpiar_estatus_caso(texto):
   if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return 'En Proceso'
+    return 'Abierto'
   t = str(texto).strip().title()
-  if 'abiert' in t.lower() or 'proceso' in t.lower() or 'pend' in t.lower():
+  if 'abiert' in t.lower():
+    return 'Abierto'
+  elif 'proceso' in t.lower() or 'pend' in t.lower():
     return 'En Proceso'
-  if 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
+  elif 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
     return 'Cerrado'
   return t
 
@@ -266,7 +267,7 @@ def extraer_estatus_caso_especifico(row_dict):
           and p in str(key).lower()
       ):
         return limpiar_estatus_caso(str(value))
-  return 'En Proceso'
+  return 'Abierto'
 
 
 def extraer_fecha_aap(row_dict):
@@ -594,6 +595,7 @@ with aap_c4:
     )
 
     MAPA_COLORES_ESTADO = {
+        'Abierto': COLOR_NARANJA_ABIERTO,
         'En Proceso': COLOR_VERDE_COOPI,
         'Cerrado': COLOR_AZUL_COOPI,
     }

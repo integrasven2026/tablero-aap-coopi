@@ -127,7 +127,7 @@ font_layout = dict(family='Quicksand', size=13)
 
 
 # -----------------------------------------------------------------------------
-# FUNCIONES AUXILIARES DE LIMPIEZA
+# FUNCIONES AUXILIARES DE LIMPIEZA Y CATEGORIZACIÓN
 # -----------------------------------------------------------------------------
 def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
   val_afirmativos = ['sí', 'si', 'yes', '1', 's', 'true']
@@ -141,7 +141,7 @@ def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
 
 
 def extraer_campo_dinamico(
-    row_dict, palabras_clave, valor_defecto='Buzón / Presencial'
+    row_dict, palabras_clave, valor_defecto='Buzón'
 ):
   for key, value in row_dict.items():
     if value is None or str(value).strip() == '':
@@ -156,40 +156,47 @@ def extraer_campo_dinamico(
 
 def limpiar_canal(texto):
   if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return 'Buzón / Presencial'
-  t = str(texto).strip().title()
-  if 'buz' in t.lower():
     return 'Buzón'
-  if 'telefon' in t.lower() or 'llamada' in t.lower():
+  t = str(texto).strip().lower()
+  if 'buzon' in t or 'buz' in t:
+    return 'Buzón'
+  elif 'telefon' in t or 'llamada' in t:
     return 'Línea Telefónica'
-  if 'mensaje' in t.lower() or 'text' in t.lower() or 'whatsapp' in t.lower():
+  elif 'mensaje' in t or 'text' in t or 'whatsapp' in t:
     return 'Mensaje de Texto / WhatsApp'
-  return t
+  elif 'cara' in t:
+    return 'Cara a Cara'
+  elif 'correo' in t or 'email' in t:
+    return 'Correo Electrónico'
+  return str(texto).strip().title()
 
 
 def limpiar_tipo_pqrs(texto):
   if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return 'Información'
-  t = str(texto).strip().title()
-  if 'inform' in t.lower():
-    return 'Información'
-  if 'reclamo' in t.lower():
-    return 'Reclamo'
-  if 'queja' in t.lower():
-    return 'Queja'
-  if 'felicit' in t.lower() or 'suger' in t.lower():
-    return 'Sugerencias / Felicitaciones'
+    return '3. Demanda de información de Asistencia Humanitaria'
+  t = str(texto).strip()
+  t_lower = t.lower()
+  if t == '5_' or 'retroalimentaci' in t_lower or 'felicitacion' in t_lower:
+    return '1. Retroalimentación Positiva (Felicitaciones)'
+  elif t == '2' or 'solicitud' in t_lower:
+    return '2. Solicitud de Asistencia Humanitaria'
+  elif 'informacion' in t_lower or 'demanda' in t_lower or '3.' in t:
+    return '3. Demanda de información de Asistencia Humanitaria'
+  elif 'reclamo' in t_lower or '4.' in t:
+    return '4. Reclamos Relacionadas a la Asistencia Humanitaria'
+  elif 'queja' in t_lower or '5.' in t:
+    return '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude y Corrupción)'
   return t
 
 
 def limpiar_estatus_caso(texto):
   if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
-    return 'En Proceso / Abierto'
+    return 'En Proceso'
   t = str(texto).strip().title()
   if 'abiert' in t.lower() or 'proceso' in t.lower() or 'pend' in t.lower():
-    return 'En Proceso / Abierto'
+    return 'En Proceso'
   if 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
-    return 'Cerrado / Resuelto'
+    return 'Cerrado'
   return t
 
 
@@ -203,7 +210,7 @@ def extraer_estatus_caso_especifico(row_dict):
           and p in str(key).lower()
       ):
         return limpiar_estatus_caso(str(value))
-  return 'En Proceso / Abierto'
+  return 'En Proceso'
 
 
 def extraer_fecha_aap(row_dict):
@@ -240,7 +247,7 @@ def cargar_datos_aap(
   for r in data:
     canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
     tipo_pqrs_raw = extraer_campo_dinamico(
-        r, ['tipo', 'retroalimentacion', 'pqrs'], 'Información'
+        r, ['tipo', 'retroalimentacion', 'pqrs'], '3. Demanda de información de Asistencia Humanitaria'
     )
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
@@ -502,8 +509,8 @@ with aap_c4:
     )
 
     MAPA_COLORES_ESTADO = {
-        'En Proceso / Abierto': COLOR_VERDE_COOPI,
-        'Cerrado / Resuelto': COLOR_AZUL_COOPI,
+        'En Proceso': COLOR_VERDE_COOPI,
+        'Cerrado': COLOR_AZUL_COOPI,
     }
 
     fig_est_aap = px.bar(

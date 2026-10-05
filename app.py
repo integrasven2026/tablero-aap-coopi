@@ -179,10 +179,14 @@ def obtener_peso_fila(row_dict):
   peso = 1
   tipo_detectado = None
 
-  # Búsqueda robusta de la variable cuantitativa de retroalimentación positiva
+  # 1. Búsqueda ultra-robusta de la variable de carga masiva de retroalimentación positiva
   for k, v in row_dict.items():
     k_low = str(k).lower()
-    if 'retroalimentaci' in k_low and 'positiva' in k_low:
+    if (
+        ('retroalimentaci' in k_low and 'positiva' in k_low)
+        or ('_1_retroalimentaci' in k_low)
+        or ('carga_1' in k_low)
+    ):
       if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
         try:
           num_val = int(float(v))
@@ -334,7 +338,7 @@ def cargar_datos_aap(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    # Fila base (peso 1) con su estatus real
+    # Fila base
     aap_rows.append({
         '_id': r.get('_id'),
         'Canal': limpiar_canal(canal_raw),
@@ -352,7 +356,7 @@ def cargar_datos_aap(
         'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
     })
 
-    # Replicar filas adicionales según el peso de la carga masiva para sumar al Total de PQRS y Gráficos
+    # Replicar según el peso de la carga masiva para sumar al Total y gráficos
     for _ in range(peso - 1):
       aap_rows.append({
           '_id': r.get('_id'),

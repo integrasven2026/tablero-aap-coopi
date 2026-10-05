@@ -397,4 +397,23 @@ def cargar_datos_indicadores_aap(
   headers = {'Authorization': f'Token {token_ind}'}
   url = f'{kobo_url}/api/v2/assets/{asset_id_ind}/data.json'
   try:
-    response = requests.get(url, headers=
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+      return pd.DataFrame()
+    data = response.json().get('results', [])
+    if not data:
+      return pd.DataFrame()
+    return pd.DataFrame(data)
+  except Exception:
+    return pd.DataFrame()
+
+
+# Credenciales y IDs de KoboToolbox
+try:
+  KOBO_TOKEN = st.secrets.get(
+      'KOBO_TOKEN', 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
+  )
+except Exception:
+  KOBO_TOKEN = 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
+
+ASSET_ID_AAP = 'aRbFg8ig

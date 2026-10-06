@@ -344,36 +344,28 @@ def extraer_fecha_aap(row_dict):
 
 
 def clasificar_texto_proyecto(val_str):
-  if not val_str:
+  if not val_str or str(val_str).lower() in ['none', 'null', '', 'nan']:
     return None
-  v_low = str(val_str).lower()
-  if '881501' in v_low or '8815' in v_low or 'conahve' in v_low or 'echo' in v_low:
+  v_low = str(val_str).lower().strip()
+
+  if any(k in v_low for k in ['sucre', 'agua para la vida', 'due_sucre', 'due sucre']):
+    return 'DUE Sucre "Agua para la vida"'
+  elif any(k in v_low for k in ['eco', 'resiliencia', 'costera', 'due_eco', 'due eco']):
+    return 'DUE Eco resiliencia costera'
+  elif any(k in v_low for k in ['conahve', 'echo', '881501', '8815']):
     return 'ECHO CONAHVE'
-  elif 'integras' in v_low or 'íntegras' in v_low or 'ínt' in v_low:
+  elif any(k in v_low for k in ['integras', 'íntegras', 'ínt']):
     return 'INTEGRAS'
   elif 'aics' in v_low:
     return 'AICS'
-  elif (
-      'agua para la vida' in v_low
-      or 'sucre' in v_low
-      or 'due_sucre' in v_low
-      or 'due sucre' in v_low
-  ):
-    return 'DUE Sucre "Agua para la vida"'
-  elif (
-      'eco resiliencia' in v_low
-      or 'costera' in v_low
-      or 'due_eco' in v_low
-      or 'due eco' in v_low
-  ):
-    return 'DUE Eco resiliencia costera'
   elif 'no refiere' in v_low:
     return 'NO REFIERE PROYECTO'
-  return None
+
+  return str(val_str).strip()
 
 
 def extraer_proyecto_kobo(row_dict, form_source):
-  # 1. Buscar en campos de proyecto específicos
+  # 1. Buscar primero en campos que explícitamente contengan nombres/claves de proyecto
   claves_proy = [
       'proyecto',
       'proyectoa',
@@ -388,14 +380,14 @@ def extraer_proyecto_kobo(row_dict, form_source):
       if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
         if p in str(k).lower():
           res = clasificar_texto_proyecto(v)
-          if res:
+          if res and res != 'NO REFIERE PROYECTO':
             return res
 
-  # 2. Búsqueda exhaustiva de respaldo en TODOS los campos del registro
+  # 2. Búsqueda general en cualquier campo del registro
   for k, v in row_dict.items():
     if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
       res = clasificar_texto_proyecto(v)
-      if res:
+      if res and res != 'NO REFIERE PROYECTO':
         return res
 
   if form_source == 'form2':
@@ -438,7 +430,7 @@ def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
   data1 = cargar_datos_kobo(asset_id_aap, token_aap)  # Formulario Seguimiento AAP
   data2 = cargar_datos_kobo(
       asset_id_seg, token_aap
-  )  # Formulario de Registros de PQRS (INTEGRAS y AICS)
+  )  # Formulario de Registros de PQRS
 
   all_raw_data = []
   for r in data1:
@@ -569,7 +561,7 @@ def cargar_datos_indicadores_aap(
 # Credenciales y IDs de KoboToolbox
 KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
 ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'  # Formulario 1: Seguimiento AAP
-ASSET_ID_SEGUIMIENTO = (  # Formulario 2: Formulario 6 de Registros de PQRS (INTEGRAS y AICS)
+ASSET_ID_SEGUIMIENTO = (  # Formulario 2: Formulario 6 de Registros de PQRS
     'aav4FtiNC62seD5LAaJJJJ'
 )
 ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'  # Indicadores AAP

@@ -344,28 +344,35 @@ def extraer_fecha_aap(row_dict):
 
 
 def limpiar_nombre_proyecto(val, form_source):
-  if not val or str(val).lower() in ['none', 'null', '', 'nan']:
+  if not val or str(val).lower() in [
+      'none',
+      'null',
+      '',
+      'nan',
+      'no refiere proyecto',
+      'no refiere',
+  ]:
     if form_source == 'form2':
-      return 'Íntegras'
-    return 'DUE Sucre "Agua para la vida"'
+      return 'INTEGRAS'
+    return 'NO REFIERE PROYECTO'
 
   s = str(val).strip()
   s_low = s.lower()
 
-  if form_source == 'form2':
-    if 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
-      return 'Íntegras'
-    elif 'aics' in s_low:
-      return 'AICS'
-    return 'Íntegras'
-  else:
-    if 'agua para la vida' in s_low or 'sucre' in s_low:
-      return 'DUE Sucre "Agua para la vida"'
-    elif 'eco resiliencia' in s_low or 'costera' in s_low:
-      return 'DUE Eco resiliencia costera'
-    elif 'conahve' in s_low or 'echo' in s_low:
-      return 'ECHO CONAHVE'
-    return s
+  if 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
+    return 'INTEGRAS'
+  elif 'aics' in s_low:
+    return 'AICS'
+  elif 'agua para la vida' in s_low or 'sucre' in s_low:
+    return 'DUE SUCRE "AGUA PARA LA VIDA"'
+  elif 'eco resiliencia' in s_low or 'costera' in s_low:
+    return 'DUE ECO RESILIENCIA COSTERA'
+  elif 'conahve' in s_low or 'echo' in s_low:
+    return 'ECHO CONAHVE'
+  elif 'no refiere' in s_low:
+    return 'NO REFIERE PROYECTO'
+
+  return s.upper()
 
 
 def extraer_proyecto_kobo(row_dict, form_source):
@@ -384,8 +391,8 @@ def extraer_proyecto_kobo(row_dict, form_source):
         if p in str(k).lower():
           return limpiar_nombre_proyecto(v, form_source)
   if form_source == 'form2':
-    return 'Íntegras'
-  return 'DUE Sucre "Agua para la vida"'
+    return 'INTEGRAS'
+  return 'NO REFIERE PROYECTO'
 
 
 def extraer_campo_dinamico(row_dict, palabras_clave, valor_defecto='General'):
@@ -423,7 +430,7 @@ def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
   data1 = cargar_datos_kobo(asset_id_aap, token_aap)  # Formulario Seguimiento AAP
   data2 = cargar_datos_kobo(
       asset_id_seg, token_aap
-  )  # Formulario de Registros de PQRS (Íntegras y AICS)
+  )  # Formulario de Registros de PQRS (INTEGRAS y AICS)
 
   all_raw_data = []
   for r in data1:
@@ -554,7 +561,7 @@ def cargar_datos_indicadores_aap(
 # Credenciales y IDs de KoboToolbox
 KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
 ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'  # Formulario 1: Seguimiento AAP
-ASSET_ID_SEGUIMIENTO = (  # Formulario 2: Formulario 6 de Registros de PQRS (Íntegras y AICS)
+ASSET_ID_SEGUIMIENTO = (  # Formulario 2: Formulario 6 de Registros de PQRS (INTEGRAS y AICS)
     'aav4FtiNC62seD5LAaJJJJ'
 )
 ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'  # Indicadores AAP

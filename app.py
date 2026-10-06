@@ -359,7 +359,9 @@ def limpiar_nombre_proyecto(val, form_source):
   s = str(val).strip()
   s_low = s.lower()
 
-  if 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
+  if '881501' in s_low or '8815' in s_low or 'conahve' in s_low or 'echo' in s_low:
+    return 'ECHO CONAHVE'
+  elif 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
     return 'INTEGRAS'
   elif 'aics' in s_low:
     return 'AICS'
@@ -367,8 +369,6 @@ def limpiar_nombre_proyecto(val, form_source):
     return 'DUE SUCRE "AGUA PARA LA VIDA"'
   elif 'eco resiliencia' in s_low or 'costera' in s_low:
     return 'DUE ECO RESILIENCIA COSTERA'
-  elif 'conahve' in s_low or 'echo' in s_low:
-    return 'ECHO CONAHVE'
   elif 'no refiere' in s_low:
     return 'NO REFIERE PROYECTO'
 

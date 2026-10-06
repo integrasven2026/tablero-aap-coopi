@@ -212,24 +212,42 @@ def limpiar_canal(texto):
       'sin especificar',
   ]:
     return 'Sin Especificar'
-  t = str(texto).strip().lower()
-  if 'buzon' in t or 'buz' in t:
-    return 'Buzón'
-  elif 'telefon' in t or 'llamada' in t or 'tlf' in t or 'cel' in t or 'movil' in t:
-    return 'Línea Telefónica'
-  elif (
-      'whatsapp' in t
-      or 'wsp' in t
-      or 'mensaje' in t
-      or 'text' in t
-      or 'wa' in t
+
+  t_str = str(texto).strip()
+  t_low = t_str.lower()
+
+  # Si ingresaron un número telefónico, corresponde a Mensaje de Texto / WhatsApp
+  if (
+      t_str.isdigit()
+      or t_str.startswith('04')
+      or t_str.startswith('02')
+      or t_str.startswith('+58')
   ):
     return 'Mensaje de Texto / WhatsApp'
-  elif 'cara' in t or 'presencial' in t:
+
+  if 'buzon' in t_low or 'buz' in t_low:
+    return 'Buzón'
+  elif (
+      'telefon' in t_low
+      or 'llamada' in t_low
+      or 'tlf' in t_low
+      or 'cel' in t_low
+  ):
+    return 'Línea Telefónica'
+  elif (
+      'whatsapp' in t_low
+      or 'wsp' in t_low
+      or 'mensaje' in t_low
+      or 'text' in t_low
+      or 'wa' in t_low
+  ):
+    return 'Mensaje de Texto / WhatsApp'
+  elif 'cara' in t_low or 'presencial' in t_low:
     return 'Cara a Cara'
-  elif 'correo' in t or 'email' in t or 'mail' in t:
+  elif 'correo' in t_low or 'email' in t_low or 'mail' in t_low:
     return 'Correo Electrónico'
-  return str(texto).strip().title()
+
+  return 'Mensaje de Texto / WhatsApp'
 
 
 def mapear_categoria_segundo_formulario(cat_raw):

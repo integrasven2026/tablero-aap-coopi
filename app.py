@@ -249,6 +249,23 @@ def limpiar_canal(texto):
   return 'Buzón'
 
 
+def limpiar_satisfaccion(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Sin Especificar'
+  t_str = str(texto).strip()
+  t_clean = t_str.replace('__', ' ').replace('_', ' ')
+  t_low = t_clean.lower()
+  if 'muy' in t_low and 'satisfech' in t_low:
+    return 'Muy Satisfecho'
+  elif 'satisfech' in t_low:
+    return 'Satisfecho'
+  elif 'insatisfech' in t_low:
+    return 'Insatisfecho'
+  elif 'poco' in t_low:
+    return 'Poco Satisfecho'
+  return t_clean.title()
+
+
 def mapear_categoria_segundo_formulario(cat_raw):
   if not cat_raw or str(cat_raw).lower() in ['none', 'null', '', 'nan']:
     return '3. Demanda de información de Asistencia Humanitaria', 1
@@ -622,7 +639,12 @@ def cargar_datos_indicadores_aap(
     data = response.json().get('results', [])
     if not data:
       return pd.DataFrame()
-    return pd.DataFrame(data)
+    df_ind = pd.DataFrame(data)
+    # Limpiar columnas de satisfacción si existen
+    sat_col = [c for c in df_ind.columns if 'satisfac' in c.lower()]
+    if sat_col:
+      df_ind[sat_col[0]] = df_ind[sat_col[0]].apply(limpiar_satisfaccion)
+    return df_ind
   except Exception:
     return pd.DataFrame()
 

@@ -175,12 +175,31 @@ def extraer_canal_dinamico(row_dict):
       'via',
       'recogida',
       'tipo_canal',
+      'contacto',
   ]
   for key, value in row_dict.items():
     if value is not None and str(value).strip() not in ['', 'none', 'null', 'nan']:
       k_low = str(key).lower()
       if any(c in k_low for c in claves):
         return str(value).strip()
+
+  for key, value in row_dict.items():
+    if value is not None:
+      v_low = str(value).lower()
+      if any(
+          w in v_low
+          for w in [
+              'whatsapp',
+              'wsp',
+              'llamada',
+              'telefon',
+              'buzon',
+              'cara',
+              'correo',
+          ]
+      ):
+        return str(value).strip()
+
   return 'Sin Especificar'
 
 
@@ -196,13 +215,19 @@ def limpiar_canal(texto):
   t = str(texto).strip().lower()
   if 'buzon' in t or 'buz' in t:
     return 'Buzón'
-  elif 'telefon' in t or 'llamada' in t:
+  elif 'telefon' in t or 'llamada' in t or 'tlf' in t or 'cel' in t or 'movil' in t:
     return 'Línea Telefónica'
-  elif 'whatsapp' in t or 'mensaje' in t or 'text' in t:
+  elif (
+      'whatsapp' in t
+      or 'wsp' in t
+      or 'mensaje' in t
+      or 'text' in t
+      or 'wa' in t
+  ):
     return 'Mensaje de Texto / WhatsApp'
-  elif 'cara' in t:
+  elif 'cara' in t or 'presencial' in t:
     return 'Cara a Cara'
-  elif 'correo' in t or 'email' in t:
+  elif 'correo' in t or 'email' in t or 'mail' in t:
     return 'Correo Electrónico'
   return str(texto).strip().title()
 
@@ -349,7 +374,6 @@ def clasificar_texto_proyecto(val_str):
   v_str = str(val_str).strip()
   v_low = v_str.lower()
 
-  # Mapeo de IDs numéricos de KoboToolbox vistos en captura y textos clave
   if any(
       k in v_low
       for k in [
@@ -388,7 +412,6 @@ def clasificar_texto_proyecto(val_str):
   elif 'no refiere' in v_low:
     return 'NO REFIERE PROYECTO'
 
-  # Si es un número largo (ID de Kobo no mapeado explícitamente), asignarlo por defecto a DUE Sucre o Integras según corresponda
   if v_str.isdigit() and len(v_str) > 5:
     return 'DUE Sucre "Agua para la vida"'
 
@@ -396,7 +419,6 @@ def clasificar_texto_proyecto(val_str):
 
 
 def extraer_proyecto_kobo(row_dict, form_source):
-  # 1. Buscar en campos de proyecto específicos
   claves_proy = [
       'proyecto',
       'proyectoa',
@@ -414,7 +436,6 @@ def extraer_proyecto_kobo(row_dict, form_source):
           if res and res != 'NO REFIERE PROYECTO':
             return res
 
-  # 2. Búsqueda exhaustiva en cualquier campo del registro
   for k, v in row_dict.items():
     if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
       res = clasificar_texto_proyecto(v)

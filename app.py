@@ -203,7 +203,9 @@ def mapear_categoria_segundo_formulario(cat_raw):
 
 
 def obtener_peso_fila(row_dict):
-  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get('categoria_retroalimentacion')
+  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get(
+      'categoria_retroalimentacion'
+  )
   if cat_form2:
     return mapear_categoria_segundo_formulario(cat_form2)
 
@@ -468,4 +470,108 @@ def cargar_datos_indicadores_aap(
     data = response.json().get('results', [])
     if not data:
       return pd.DataFrame()
-    return pd.
+    return pd.DataFrame(data)
+  except Exception:
+    return pd.DataFrame()
+
+
+# Credenciales y IDs de KoboToolbox
+KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
+ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'
+ASSET_ID_SEGUIMIENTO = 'aav4FtiNC62seD5LAaJJJJ'
+ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'
+
+df_aap_raw = cargar_todos_datos_aap(ASSET_ID_AAP, ASSET_ID_SEGUIMIENTO, KOBO_TOKEN)
+df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
+
+# -----------------------------------------------------------------------------
+# FILTROS EN LA BARRA LATERAL
+# -----------------------------------------------------------------------------
+st.sidebar.header('Filtros AAP - COOPI')
+
+if st.sidebar.button('🔄 Actualizar Datos'):
+  st.cache_data.clear()
+  st.rerun()
+
+st.sidebar.markdown('---')
+
+proyectos_disp = ['TODOS'] + sorted(
+    [x for x in df_aap_raw['Proyecto'].dropna().unique() if x]
+)
+proyecto_sel = st.sidebar.selectbox('Proyecto:', proyectos_disp, index=0)
+
+meses_ordenados = sorted(
+    [m for m in df_aap_raw['Mes_Reporte'].unique() if m != 'Sin Fecha']
+)
+if 'Sin Fecha' in df_aap_raw['Mes_Reporte'].values:
+  meses_ordenados.append('Sin Fecha')
+meses_disp = ['Todos'] + meses_ordenados
+mes_sel = st.sidebar.selectbox('Mes del Reporte:', meses_disp)
+
+estados_disp = ['Todos'] + sorted(
+    [x for x in df_aap_raw['Estado_Geo'].dropna().unique() if x]
+)
+estado_sel = st.sidebar.selectbox('Estado Geográfico:', estados_disp)
+
+lista_poblacion_interes = [
+    'TODOS',
+    'Personas con Discapacidad',
+    'Niñas',
+    'Niños',
+    'Comunidad Indígena',
+    'LGBTIQ+',
+    'Embarazadas / Lactantes',
+]
+poblacion_sel = st.sidebar.selectbox('Población de Interés:', lista_poblacion_interes)
+
+# APLICAR FILTROS AAP (PQRS)
+df_aap_filtered = df_aap_raw.copy()
+if proyecto_sel != 'TODOS':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Proyecto'] == proyecto_sel]
+if mes_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Mes_Reporte'] == mes_sel]
+if estado_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Estado_Geo'] == estado_sel]
+
+if poblacion_sel == 'Personas con Discapacidad':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Discapacidad'] == 1]
+elif poblacion_sel == 'Niñas':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nina'] == 1]
+elif poblacion_sel == 'Niños':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nino'] == 1]
+elif poblacion_sel == 'Comunidad Indígena':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Indigena'] == 1]
+elif poblacion_sel == 'LGBTIQ+':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['LGBTIQ'] == 1]
+elif poblacion_sel == 'Embarazadas / Lactantes':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Embarazada'] == 1]
+
+total_pqrs = len(df_aap_filtered)
+pct_meta_pqrs = (total_pqrs / META_5_PORCIENTO) * 100
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 1: MÉTRICAS GENERALES DE PQRS
+# -----------------------------------------------------------------------------
+titulo_resumen = (
+    f'Resumen de Rendición de Cuentas - {proyecto_sel}'
+    if proyecto_sel != 'TODOS'
+    else 'Resumen de Rendición de Cuentas - General'
+)
+st.subheader(titulo_resumen)
+
+m_c1, m_c2, m_c3 = st.columns(3)
+m_c1.metric('Total PQRS Registradas', f'{total_pqrs:,}')
+m_c2.metric('Meta 5% (Beneficiarios)', f'{int(META_5_PORCIENTO):,}')
+m_c3.metric('% Cumplimiento Meta PQRS', f'{pct_meta_pqrs:.2f}%')
+
+st.markdown('---')
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 2: GRÁFICOS DE PQRS
+# -----------------------------------------------------------------------------
+aap_c1, aap_c2 = st.columns(2)
+
+# 1. Canal más utilizado (Gráfico de Torta / Donut)
+with aap_c1:
+  st.markdown('### Canal más utilizado por los participantes')
+  if total

@@ -127,13 +127,19 @@ MAPA_ESTADOS = {
     'VE15': 'Miranda',
     'VE19': 'Sucre',
     'VE24': 'La Guaira',
+    'Distrito Capital': 'Distrito Capital',
+    'Bolívar': 'Bolívar',
+    'Delta Amacuro': 'Delta Amacuro',
+    'Miranda': 'Miranda',
+    'Sucre': 'Sucre',
+    'La Guaira': 'La Guaira',
 }
 
 font_layout = dict(family='Quicksand', size=13)
 
 
 # -----------------------------------------------------------------------------
-# FUNCIONES AUXILIARES DE LIMPIEZA Y CATEGORIZACIÓN
+# FUNCIONES AUXILIARES DE LIMPIEZA Y ESTANDARIZACIÓN
 # -----------------------------------------------------------------------------
 def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
   val_afirmativos = ['sí', 'si', 'yes', '1', 's', 'true']
@@ -166,7 +172,7 @@ def limpiar_canal(texto):
     return 'Buzón'
   elif 'telefon' in t or 'llamada' in t:
     return 'Línea Telefónica'
-  elif 'mensaje' in t or 'text' in t or 'whatsapp' in t:
+  elif 'whatsapp' in t or 'mensaje' in t or 'text' in t:
     return 'Mensaje de Texto / WhatsApp'
   elif 'cara' in t:
     return 'Cara a Cara'
@@ -175,9 +181,35 @@ def limpiar_canal(texto):
   return str(texto).strip().title()
 
 
-def obtener_peso_fila(row_dict):
-  tipo_detectado = None
+def mapear_categoria_segundo_formulario(cat_raw):
+  if not cat_raw or str(cat_raw).lower() in ['none', 'null', '', 'nan']:
+    return '3. Demanda de información de Asistencia Humanitaria', 1
+  c = str(cat_raw).strip().lower()
+  if 'positiv' in c:
+    return '1. Retroalimentación Positiva (Felicitaciones)', 1
+  elif 'solicitud de asistencia' in c or 'sugerencia' in c:
+    return '2. Solicitud de Asistencia Humanitaria', 1
+  elif 'solicitud de informaci' in c:
+    return '3. Demanda de información de Asistencia Humanitaria', 1
+  elif 'reclamo' in c:
+    return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
+  elif 'queja' in c:
+    return (
+        '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+        ' y Corrupción)',
+        1,
+    )
+  return '3. Demanda de información de Asistencia Humanitaria', 1
 
+
+def obtener_peso_fila(row_dict):
+  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get(
+      'categoria_retroalimentacion'
+  )
+  if cat_form2:
+    return mapear_categoria_segundo_formulario(cat_form2)
+
+  tipo_detectado = None
   for k, v in row_dict.items():
     k_low = str(k).lower()
     if (
@@ -228,7 +260,6 @@ def obtener_peso_fila(row_dict):
 
   if tipo_detectado:
     return tipo_detectado, 1
-
   return '3. Demanda de información de Asistencia Humanitaria', 1
 
 
@@ -270,7 +301,13 @@ def extraer_estatus_caso_especifico(row_dict):
 
 
 def extraer_fecha_aap(row_dict):
-  claves_fecha = ['fecha', 'today', 'date', '_submission_time']
+  claves_fecha = [
+      'fecha de la retroalimentación',
+      'fecha',
+      'today',
+      'date',
+      '_submission_time',
+  ]
   for cf in claves_fecha:
     for key, value in row_dict.items():
       if value and cf in str(key).lower():
@@ -281,31 +318,49 @@ def extraer_fecha_aap(row_dict):
 
 
 # -----------------------------------------------------------------------------
-# CARGA DE DATOS DESDE KOBOTOOLBOX
+# CARGA DE DATOS DESDE KOBOTOOLBOX (AMBOS FORMULARIOS)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
-def cargar_datos_aap(
-    asset_id_aap, token_aap, kobo_url='https://eu.kobotoolbox.org'
+def cargar_datos_kobo(
+    asset_id, token_aap, kobo_url='https://eu.kobotoolbox.org'
 ):
   headers = {'Authorization': f'Token {token_aap}'}
-  url = f'{kobo_url}/api/v2/assets/{asset_id_aap}/data.json'
+  url = f'{kobo_url}/api/v2/assets/{asset_id}/data.json'
   try:
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
-      return pd.DataFrame()
-    data = response.json().get('results', [])
-    if not data:
-      return pd.DataFrame()
+      return []
+    return response.json().get('results', [])
   except Exception:
+    return []
+
+
+@st.cache_data(ttl=3600)
+def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
+  data1 = cargar_datos_kobo(asset_id_aap, token_aap)
+  data2 = cargar_datos_kobo(asset_id_seg, token_aap)
+
+  all_raw_data = []
+  for r in data1:
+    r['_form_source'] = 'form1'
+    all_raw_data.append(r)
+  for r in data2:
+    r['_form_source'] = 'form2'
+    all_raw_data.append(r)
+
+  if not all_raw_data:
     return pd.DataFrame()
 
   aap_rows = []
-  for r in data:
-    canal_raw = extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
+  for r in all_raw_data:
+    canal_raw = r.get(
+        'Mecanismo por el cual se recogió la retroalimentación'
+    ) or extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
     tipo_pqrs, peso = obtener_peso_fila(r)
 
     colab_raw = (
         r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
+        or r.get('Nombre de la persona que recibe la retroalimentación')
         or r.get('colaborador')
         or 'carlos_mesa'
     )
@@ -313,8 +368,13 @@ def cargar_datos_aap(
 
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
+
     socio_val = str(
-        r.get('ong') or r.get('socio') or r.get('group_pqrs/socio') or 'COOPI'
+        r.get('Proyecto')
+        or r.get('ong')
+        or r.get('socio')
+        or r.get('group_pqrs/socio')
+        or 'COOPI'
     ).upper().strip()
 
     discapacidad = extraer_valor_booleano(r, ['discapacidad', 'pcd'])
@@ -323,16 +383,22 @@ def cargar_datos_aap(
     embarazada = extraer_valor_booleano(r, ['embarazada', 'lactante'])
 
     sexo_raw = str(
-        r.get('sexo') or r.get('group_pqrs/sexo') or ''
+        r.get('sexo')
+        or r.get('Sexo')
+        or r.get('group_pqrs/sexo')
+        or ''
     ).lower().strip()
     try:
-      edad = float(r.get('edad') or r.get('group_pqrs/edad') or 0)
+      edad = float(
+          r.get('edad') or r.get('Edad') or r.get('group_pqrs/edad') or 0
+      )
     except (ValueError, TypeError):
       edad = 0
 
     es_nina = 1 if (edad < 18 and sexo_raw in ['femenino', 'f', 'mujer']) else 0
     es_nino = 1 if (edad < 18 and sexo_raw in ['masculino', 'm', 'hombre']) else 0
-    estado_geo_val = extraer_campo_dinamico(
+
+    estado_geo_val = r.get('Estado') or extraer_campo_dinamico(
         r, ['estado_geo', 'Estado'], 'General'
     )
 
@@ -406,17 +472,12 @@ def cargar_datos_indicadores_aap(
 
 
 # Credenciales y IDs de KoboToolbox
-try:
-  KOBO_TOKEN = st.secrets.get(
-      'KOBO_TOKEN', 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
-  )
-except Exception:
-  KOBO_TOKEN = 'a18c017a2e697f4ea1272375dae261ccec6b19d7'
-
+KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
 ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'
+ASSET_ID_SEGUIMIENTO = 'aav4FtiNC62seD5LAaJJJJ'
 ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'
 
-df_aap_raw = cargar_datos_aap(ASSET_ID_AAP, KOBO_TOKEN)
+df_aap_raw = cargar_todos_datos_aap(ASSET_ID_AAP, ASSET_ID_SEGUIMIENTO, KOBO_TOKEN)
 df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
 
 # -----------------------------------------------------------------------------

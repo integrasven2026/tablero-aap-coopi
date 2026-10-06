@@ -343,39 +343,38 @@ def extraer_fecha_aap(row_dict):
   return None
 
 
-def limpiar_nombre_proyecto(val, form_source):
-  if not val or str(val).lower() in [
-      'none',
-      'null',
-      '',
-      'nan',
-      'no refiere proyecto',
-      'no refiere',
-  ]:
-    if form_source == 'form2':
-      return 'INTEGRAS'
-    return 'NO REFIERE PROYECTO'
-
-  s = str(val).strip()
-  s_low = s.lower()
-
-  if '881501' in s_low or '8815' in s_low or 'conahve' in s_low or 'echo' in s_low:
+def clasificar_texto_proyecto(val_str):
+  if not val_str:
+    return None
+  v_low = str(val_str).lower()
+  if '881501' in v_low or '8815' in v_low or 'conahve' in v_low or 'echo' in v_low:
     return 'ECHO CONAHVE'
-  elif 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
+  elif 'integras' in v_low or 'íntegras' in v_low or 'ínt' in v_low:
     return 'INTEGRAS'
-  elif 'aics' in s_low:
+  elif 'aics' in v_low:
     return 'AICS'
-  elif 'agua para la vida' in s_low or 'sucre' in s_low or 'due_sucre' in s_low:
+  elif (
+      'agua para la vida' in v_low
+      or 'sucre' in v_low
+      or 'due_sucre' in v_low
+      or 'due sucre' in v_low
+  ):
     return 'DUE Sucre "Agua para la vida"'
-  elif 'eco resiliencia' in s_low or 'costera' in s_low or 'eco' in s_low:
+  elif (
+      'eco' in v_low
+      or 'resiliencia' in v_low
+      or 'costera' in v_low
+      or 'due_eco' in v_low
+      or 'due eco' in v_low
+  ):
     return 'DUE Eco resiliencia costera'
-  elif 'no refiere' in s_low:
+  elif 'no refiere' in v_low:
     return 'NO REFIERE PROYECTO'
-
-  return s
+  return None
 
 
 def extraer_proyecto_kobo(row_dict, form_source):
+  # 1. Buscar en campos de proyecto específicos
   claves_proy = [
       'proyecto',
       'proyectoa',
@@ -389,7 +388,17 @@ def extraer_proyecto_kobo(row_dict, form_source):
     for k, v in row_dict.items():
       if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
         if p in str(k).lower():
-          return limpiar_nombre_proyecto(v, form_source)
+          res = clasificar_texto_proyecto(v)
+          if res:
+            return res
+
+  # 2. Búsqueda de respaldo en TODOS los valores del registro
+  for k, v in row_dict.items():
+    if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
+      res = clasificar_texto_proyecto(v)
+      if res:
+        return res
+
   if form_source == 'form2':
     return 'INTEGRAS'
   return 'NO REFIERE PROYECTO'
@@ -926,6 +935,6 @@ if not df_eval_aap.empty:
       )
       st.plotly_chart(fig_comp, width='stretch')
     else:
-      st.info('No hay registros de comportamiento disponibles.')
+      st.info('No hay registros de comportamiento disponibleskowej.')
 else:
   st.info('Esperando registros del formulario de Indicadores AAP.')

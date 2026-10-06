@@ -203,4 +203,269 @@ def mapear_categoria_segundo_formulario(cat_raw):
 
 
 def obtener_peso_fila(row_dict):
-  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get(
+  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get('categoria_retroalimentacion')
+  if cat_form2:
+    return mapear_categoria_segundo_formulario(cat_form2)
+
+  tipo_detectado = None
+  for k, v in row_dict.items():
+    k_low = str(k).lower()
+    if (
+        ('retroalimentaci' in k_low and 'positiva' in k_low)
+        or ('_1_retroalimentaci' in k_low)
+        or ('carga_1' in k_low)
+    ):
+      if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
+        try:
+          num_val = int(float(v))
+          if num_val > 0:
+            return '1. Retroalimentación Positiva (Felicitaciones)', num_val
+        except ValueError:
+          pass
+
+  for k, v in row_dict.items():
+    k_low = str(k).lower()
+    v_str = str(v).strip()
+    v_low = v_str.lower()
+    if 'tipopqrs' in k_low or 'tipo' in k_low or 'pqrs' in k_low:
+      if (
+          v_str == '5_'
+          or 'retroalimentaci' in v_low
+          or 'felicitacion' in v_low
+      ):
+        return '1. Retroalimentación Positiva (Felicitaciones)', 1
+
+    if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
+    if 'queja' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return (
+          '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+          ' y Corrupción)',
+          1,
+      )
+    if (
+        '_2_solicitudes_de_asistencia' in k_low
+        and v_low not in ['', 'none', 'null', 'nan']
+    ):
+      return '2. Solicitud de Asistencia Humanitaria', 1
+    if 'petici_n_pregunta' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '3. Demanda de información de Asistencia Humanitaria', 1
+
+    if v_str == '2' or 'solicitud' in v_low:
+      tipo_detectado = '2. Solicitud de Asistencia Humanitaria'
+    elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
+      tipo_detectado = '3. Demanda de información de Asistencia Humanitaria'
+
+  if tipo_detectado:
+    return tipo_detectado, 1
+  return '3. Demanda de información de Asistencia Humanitaria', 1
+
+
+def limpiar_colaborador(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Carlos Mesa'
+  t = str(texto).strip().lower()
+  if 'daisy' in t:
+    return 'Daisy Benites'
+  elif 'carlos' in t:
+    return 'Carlos Mesa'
+  return str(texto).strip().title()
+
+
+def limpiar_estatus_caso(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Sin Especificar'
+  t = str(texto).strip().title()
+  if 'abiert' in t.lower():
+    return 'Abierto'
+  elif 'proceso' in t.lower() or 'pend' in t.lower():
+    return 'En Proceso'
+  elif 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
+    return 'Cerrado'
+  return t
+
+
+def extraer_estatus_caso_especifico(row_dict):
+  prioridades = ['estatus', 'seguimiento', 'resolucion', 'estado_caso']
+  for p in prioridades:
+    for key, value in row_dict.items():
+      if (
+          value is not None
+          and str(value).strip() != ''
+          and p in str(key).lower()
+      ):
+        return limpiar_estatus_caso(str(value))
+  return 'Sin Especificar'
+
+
+def extraer_fecha_aap(row_dict):
+  claves_fecha = [
+      'fecha de la retroalimentación',
+      'fecha',
+      'today',
+      'date',
+      '_submission_time',
+  ]
+  for cf in claves_fecha:
+    for key, value in row_dict.items():
+      if value and cf in str(key).lower():
+        v_str = str(value).strip()
+        if len(v_str) >= 8:
+          return v_str
+  return None
+
+
+# -----------------------------------------------------------------------------
+# CARGA DE DATOS DESDE KOBOTOOLBOX (AMBOS FORMULARIOS)
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl=3600)
+def cargar_datos_kobo(
+    asset_id, token_aap, kobo_url='https://eu.kobotoolbox.org'
+):
+  headers = {'Authorization': f'Token {token_aap}'}
+  url = f'{kobo_url}/api/v2/assets/{asset_id}/data.json'
+  try:
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+      return []
+    return response.json().get('results', [])
+  except Exception:
+    return []
+
+
+@st.cache_data(ttl=3600)
+def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
+  data1 = cargar_datos_kobo(asset_id_aap, token_aap)
+  data2 = cargar_datos_kobo(asset_id_seg, token_aap)
+
+  all_raw_data = []
+  for r in data1:
+    r['_form_source'] = 'form1'
+    all_raw_data.append(r)
+  for r in data2:
+    r['_form_source'] = 'form2'
+    all_raw_data.append(r)
+
+  if not all_raw_data:
+    return pd.DataFrame()
+
+  aap_rows = []
+  for r in all_raw_data:
+    canal_raw = r.get(
+        'Mecanismo por el cual se recogió la retroalimentación'
+    ) or extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
+    tipo_pqrs, peso = obtener_peso_fila(r)
+
+    colab_raw = (
+        r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
+        or r.get('Nombre de la persona que recibe la retroalimentación')
+        or r.get('colaborador')
+        or 'carlos_mesa'
+    )
+    colab = limpiar_colaborador(colab_raw)
+
+    estado_caso = extraer_estatus_caso_especifico(r)
+    fecha_aap = extraer_fecha_aap(r)
+
+    proyecto_val = (
+        r.get('proyectoa')
+        or r.get('Proyecto')
+        or r.get('ong')
+        or r.get('socio')
+        or r.get('group_pqrs/socio')
+        or 'COOPI'
+    )
+    proyecto_val = str(proyecto_val).strip()
+    if proyecto_val.lower() in ['', 'none', 'null', 'nan']:
+      proyecto_val = 'COOPI'
+
+    discapacidad = extraer_valor_booleano(r, ['discapacidad', 'pcd'])
+    indigena = extraer_valor_booleano(r, ['indigena', 'etnia'])
+    lgbtiq = extraer_valor_booleano(r, ['lgbtiq', 'lgbt'])
+    embarazada = extraer_valor_booleano(r, ['embarazada', 'lactante'])
+
+    sexo_raw = str(
+        r.get('sexo')
+        or r.get('Sexo')
+        or r.get('group_pqrs/sexo')
+        or ''
+    ).lower().strip()
+    try:
+      edad = float(
+          r.get('edad') or r.get('Edad') or r.get('group_pqrs/edad') or 0
+      )
+    except (ValueError, TypeError):
+      edad = 0
+
+    es_nina = 1 if (edad < 18 and sexo_raw in ['femenino', 'f', 'mujer']) else 0
+    es_nino = 1 if (edad < 18 and sexo_raw in ['masculino', 'm', 'hombre']) else 0
+
+    estado_geo_val = r.get('Estado') or extraer_campo_dinamico(
+        r, ['estado_geo', 'Estado'], 'General'
+    )
+
+    aap_rows.append({
+        '_id': r.get('_id'),
+        'Canal': limpiar_canal(canal_raw),
+        'Tipo_PQRS': tipo_pqrs,
+        'Colaborador': colab,
+        'Estado_Caso': estado_caso,
+        'Fecha': fecha_aap,
+        'Discapacidad': discapacidad,
+        'Indigena': indigena,
+        'LGBTIQ': lgbtiq,
+        'Embarazada': embarazada,
+        'Es_Nina': es_nina,
+        'Es_Nino': es_nino,
+        'Proyecto': proyecto_val,
+        'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+    })
+
+    for _ in range(peso - 1):
+      aap_rows.append({
+          '_id': r.get('_id'),
+          'Canal': limpiar_canal(canal_raw),
+          'Tipo_PQRS': tipo_pqrs,
+          'Colaborador': colab,
+          'Estado_Caso': 'Sin Especificar',
+          'Fecha': fecha_aap,
+          'Discapacidad': discapacidad,
+          'Indigena': indigena,
+          'LGBTIQ': lgbtiq,
+          'Embarazada': embarazada,
+          'Es_Nina': es_nina,
+          'Es_Nino': es_nino,
+          'Proyecto': proyecto_val,
+          'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+      })
+
+  df_aap = pd.DataFrame(aap_rows)
+  if not df_aap.empty and 'Fecha' in df_aap.columns:
+    df_aap['Fecha_DT'] = pd.to_datetime(df_aap['Fecha'], errors='coerce')
+    df_aap = df_aap.sort_values(by='Fecha_DT')
+    df_aap['Mes_Reporte'] = df_aap['Fecha_DT'].apply(
+        lambda x: (
+            f'{x.year} - {MESES_ES.get(x.month, "")}'
+            if pd.notnull(x)
+            else 'Sin Fecha'
+        )
+    )
+  else:
+    df_aap['Mes_Reporte'] = 'Sin Fecha'
+  return df_aap
+
+
+@st.cache_data(ttl=3600)
+def cargar_datos_indicadores_aap(
+    asset_id_ind, token_ind, kobo_url='https://eu.kobotoolbox.org'
+):
+  headers = {'Authorization': f'Token {token_ind}'}
+  url = f'{kobo_url}/api/v2/assets/{asset_id_ind}/data.json'
+  try:
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+      return pd.DataFrame()
+    data = response.json().get('results', [])
+    if not data:
+      return pd.DataFrame()
+    return pd.

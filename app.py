@@ -366,13 +366,13 @@ def limpiar_nombre_proyecto(val, form_source):
   elif 'aics' in s_low:
     return 'AICS'
   elif 'agua para la vida' in s_low or 'sucre' in s_low:
-    return 'DUE SUCRE "AGUA PARA LA VIDA"'
+    return 'DUE Sucre "Agua para la vida"'
   elif 'eco resiliencia' in s_low or 'costera' in s_low:
-    return 'DUE ECO RESILIENCIA COSTERA'
+    return 'DUE Eco resiliencia costera'
   elif 'no refiere' in s_low:
     return 'NO REFIERE PROYECTO'
 
-  return s.upper()
+  return s
 
 
 def extraer_proyecto_kobo(row_dict, form_source):

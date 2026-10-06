@@ -176,7 +176,6 @@ def limpiar_canal(texto):
 
 
 def obtener_peso_fila(row_dict):
-  peso = 1
   tipo_detectado = None
 
   for k, v in row_dict.items():
@@ -285,7 +284,9 @@ def extraer_fecha_aap(row_dict):
 # CARGA DE DATOS DESDE KOBOTOOLBOX
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
-def cargar_datos_aap(asset_id_aap, token_aap, kobo_url='https://eu.kobotoolbox.org'):
+def cargar_datos_aap(
+    asset_id_aap, token_aap, kobo_url='https://eu.kobotoolbox.org'
+):
   headers = {'Authorization': f'Token {token_aap}'}
   url = f'{kobo_url}/api/v2/assets/{asset_id_aap}/data.json'
   try:
@@ -335,7 +336,6 @@ def cargar_datos_aap(asset_id_aap, token_aap, kobo_url='https://eu.kobotoolbox.o
         r, ['estado_geo', 'Estado'], 'General'
     )
 
-    # Fila base
     aap_rows.append({
         '_id': r.get('_id'),
         'Canal': limpiar_canal(canal_raw),
@@ -353,7 +353,6 @@ def cargar_datos_aap(asset_id_aap, token_aap, kobo_url='https://eu.kobotoolbox.o
         'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
     })
 
-    # Replicar según el peso de la carga masiva
     for _ in range(peso - 1):
       aap_rows.append({
           '_id': r.get('_id'),
@@ -502,39 +501,42 @@ st.markdown('---')
 # -----------------------------------------------------------------------------
 aap_c1, aap_c2 = st.columns(2)
 
+# 1. Canal más utilizado (Gráfico de Torta / Donut)
 with aap_c1:
   st.markdown('### Canal más utilizado por los participantes')
   if total_pqrs > 0 and 'Canal' in df_aap_filtered.columns:
     df_canal = df_aap_filtered['Canal'].value_counts().reset_index()
     df_canal.columns = ['Canal', 'Cantidad']
-    df_canal = df_canal.sort_values(by='Cantidad', ascending=True)
-    df_canal['Porcentaje'] = (df_canal['Cantidad'] / total_pqrs) * 100
-    df_canal['Etiqueta'] = df_canal.apply(
-        lambda r: f"{r['Cantidad']} ({r['Porcentaje']:.0f}%)", axis=1
-    )
 
-    fig_canal = px.bar(
+    fig_canal = px.pie(
         df_canal,
-        y='Canal',
-        x='Cantidad',
-        orientation='h',
-        text='Etiqueta',
-        color_discrete_sequence=[COLOR_AZUL_COOPI],
+        names='Canal',
+        values='Cantidad',
+        hole=0.4,
+        color_discrete_sequence=PALETA_COOPI,
     )
     fig_canal.update_traces(
-        textposition='outside', textfont=dict(color='#333333', size=14)
+        textinfo='percent+value', textposition='outside', textfont=dict(size=14)
     )
     fig_canal.update_layout(
-        xaxis_title='Número de PQRS',
-        yaxis_title='',
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.3,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=12),
+        ),
         font=font_layout,
-        height=320,
-        margin=dict(l=10, r=40, t=10, b=10),
+        height=450,
+        margin=dict(l=10, r=10, t=10, b=80),
     )
     st.plotly_chart(fig_canal, width='stretch')
   else:
     st.info('No hay datos de canales registrados.')
 
+# 2. Tipos de PQRS Recibidos (Gráfico de Barras Horizontales con leyenda abajo)
 with aap_c2:
   st.markdown('### Tipos de PQRS Recibidos')
   if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
@@ -552,7 +554,8 @@ with aap_c2:
         x='Cantidad',
         orientation='h',
         text='Etiqueta',
-        color_discrete_sequence=[COLOR_AZUL_COOPI],
+        color='Tipo_PQRS',
+        color_discrete_sequence=PALETA_COOPI,
     )
     fig_tipo.update_traces(
         textposition='outside', textfont=dict(color='#333333', size=13)
@@ -560,9 +563,18 @@ with aap_c2:
     fig_tipo.update_layout(
         xaxis_title='Número de PQRS',
         yaxis_title='',
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.35,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=11),
+        ),
         font=font_layout,
-        height=400,
-        margin=dict(l=10, r=60, t=10, b=10),
+        height=480,
+        margin=dict(l=10, r=60, t=10, b=100),
     )
     st.plotly_chart(fig_tipo, width='stretch')
   else:

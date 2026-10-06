@@ -536,7 +536,7 @@ with aap_c1:
   else:
     st.info('No hay datos de canales registrados.')
 
-# 2. Tipos de PQRS Recibidos (Gráfico de Barras Horizontales sin nombres en el eje, usando leyenda abajo)
+# 2. Tipos de PQRS Recibidos (Gráfico de Barras Horizontales sin nombres en eje y, leyenda abajo)
 with aap_c2:
   st.markdown('### Tipos de PQRS Recibidos')
   if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
@@ -562,7 +562,7 @@ with aap_c2:
     )
     fig_tipo.update_layout(
         xaxis_title='Número de PQRS',
-        yaxis=dict(showticklabels=False, title=''),  # Oculta nombres del eje
+        yaxis=dict(showticklabels=False, title=''),
         showlegend=True,
         legend=dict(
             orientation='h',
@@ -675,25 +675,4 @@ st.markdown(
 st.caption('Resultados de encuestas de retroalimentación y satisfacción')
 
 if not df_eval_aap.empty:
-  df_eval_filtered = df_eval_aap.copy()
-  tot_part_eval = len(df_eval_filtered)
-  pct_meta_eval = (tot_part_eval / META_5_PORCIENTO) * 100
-
-  col_ind_tot, col_ind_meta = st.columns([1, 1])
-  col_ind_tot.metric('Total Evaluaciones AAP', f'{tot_part_eval:,}')
-  col_ind_meta.metric(
-      '% Meta Evaluaciones (5% de 32 mil)', f'{pct_meta_eval:.2f}%'
-  )
-
-  st.markdown('<br>', unsafe_allow_html=True)
-
-  row1_c1, row1_c2 = st.columns(2)
-
-  # 1. Satisfacción
-  with row1_c1:
-    st.markdown('### Satisfacción de los participantes')
-    sat_col = [c for c in df_eval_filtered.columns if 'satisfac' in c.lower()]
-    if sat_col:
-      df_sat = df_eval_filtered[sat_col[0]].value_counts().reset_index()
-      df_sat.columns = ['Nivel', 'Cantidad']
-    else:
+  df_eval_filtered = df_eval

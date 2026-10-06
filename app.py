@@ -361,8 +361,7 @@ def clasificar_texto_proyecto(val_str):
   ):
     return 'DUE Sucre "Agua para la vida"'
   elif (
-      'eco' in v_low
-      or 'resiliencia' in v_low
+      'eco resiliencia' in v_low
       or 'costera' in v_low
       or 'due_eco' in v_low
       or 'due eco' in v_low
@@ -392,7 +391,7 @@ def extraer_proyecto_kobo(row_dict, form_source):
           if res:
             return res
 
-  # 2. Búsqueda de respaldo en TODOS los valores del registro
+  # 2. Búsqueda exhaustiva de respaldo en TODOS los campos del registro
   for k, v in row_dict.items():
     if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
       res = clasificar_texto_proyecto(v)
@@ -935,6 +934,6 @@ if not df_eval_aap.empty:
       )
       st.plotly_chart(fig_comp, width='stretch')
     else:
-      st.info('No hay registros de comportamiento disponibleskowej.')
+      st.info('No hay registros de comportamiento disponibles.')
 else:
   st.info('Esperando registros del formulario de Indicadores AAP.')

@@ -97,4 +97,764 @@ with col_header_logo:
     try:
       st.image(URL_LOGO_COOPI, width=200)
     except Exception:
-      st.warning("⚠️ Sube tu imagen 'logo_
+      st.warning('Sube tu imagen logo_coopi.jpg al repositorio.')
+
+st.markdown('---')
+
+# METAS Y DICCIONARIOS
+META_BENEFICIARIOS_PROYECTO = 32000
+META_5_PORCIENTO = META_BENEFICIARIOS_PROYECTO * 0.05  # 1,600 personas
+
+MESES_ES = {
+    1: 'Enero',
+    2: 'Febrero',
+    3: 'Marzo',
+    4: 'Abril',
+    5: 'Mayo',
+    6: 'Junio',
+    7: 'Julio',
+    8: 'Agosto',
+    9: 'Septiembre',
+    10: 'Octubre',
+    11: 'Noviembre',
+    12: 'Diciembre',
+}
+
+MAPA_ESTADOS = {
+    'VE01': 'Distrito Capital',
+    'VE07': 'Bolívar',
+    'VE10': 'Delta Amacuro',
+    'VE15': 'Miranda',
+    'VE19': 'Sucre',
+    'VE24': 'La Guaira',
+    'Distrito Capital': 'Distrito Capital',
+    'Bolívar': 'Bolívar',
+    'Delta Amacuro': 'Delta Amacuro',
+    'Miranda': 'Miranda',
+    'Sucre': 'Sucre',
+    'La Guaira': 'La Guaira',
+}
+
+font_layout = dict(family='Quicksand', size=13)
+
+
+# -----------------------------------------------------------------------------
+# FUNCIONES AUXILIARES DE LIMPIEZA Y CÁLCULO
+# -----------------------------------------------------------------------------
+def calcular_etiquetas_con_porcentaje(serie_cantidades, total, decimales=1):
+  etiquetas = []
+  for x in serie_cantidades:
+    if total > 0:
+      pct = (x / total) * 100
+      if decimales == 0:
+        etiquetas.append(f'{x} ({pct:.0f}%)')
+      else:
+        etiquetas.append(f'{x} ({pct:.1f}%)')
+    else:
+      etiquetas.append(str(x))
+  return etiquetas
+
+
+def extraer_valor_booleano(diccionario_beneficiario, lista_posibles_claves):
+  val_afirmativos = ['sí', 'si', 'yes', '1', 's', 'true']
+  for clave in lista_posibles_claves:
+    for k_item, v_item in diccionario_beneficiario.items():
+      if clave.lower() in str(k_item).lower():
+        val_str = str(v_item).lower().strip()
+        if val_str in val_afirmativos or v_item == 1 or v_item is True:
+          return 1
+  return 0
+
+
+def extraer_campo_dinamico(row_dict, palabras_clave, valor_defecto='Buzón'):
+  for key, value in row_dict.items():
+    if value is None or str(value).strip() == '':
+      continue
+    key_lower = str(key).lower()
+    if any(pc.lower() in key_lower for pc in palabras_clave):
+      val_str = str(value).strip()
+      if val_str.lower() not in ['none', 'null', '']:
+        return val_str
+  return valor_defecto
+
+
+def limpiar_canal(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Buzón'
+  t = str(texto).strip().lower()
+  if 'buzon' in t or 'buz' in t:
+    return 'Buzón'
+  elif 'telefon' in t or 'llamada' in t:
+    return 'Línea Telefónica'
+  elif 'whatsapp' in t or 'mensaje' in t or 'text' in t:
+    return 'Mensaje de Texto / WhatsApp'
+  elif 'cara' in t:
+    return 'Cara a Cara'
+  elif 'correo' in t or 'email' in t:
+    return 'Correo Electrónico'
+  return str(texto).strip().title()
+
+
+def mapear_categoria_segundo_formulario(cat_raw):
+  if not cat_raw or str(cat_raw).lower() in ['none', 'null', '', 'nan']:
+    return '3. Demanda de información de Asistencia Humanitaria', 1
+  c = str(cat_raw).strip().lower()
+  if 'positiv' in c:
+    return '1. Retroalimentación Positiva (Felicitaciones)', 1
+  elif 'solicitud de asistencia' in c or 'sugerencia' in c:
+    return '2. Solicitud de Asistencia Humanitaria', 1
+  elif 'solicitud de informaci' in c:
+    return '3. Demanda de información de Asistencia Humanitaria', 1
+  elif 'reclamo' in c:
+    return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
+  elif 'queja' in c:
+    return (
+        '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+        ' y Corrupción)',
+        1,
+    )
+  return '3. Demanda de información de Asistencia Humanitaria', 1
+
+
+def obtener_peso_fila(row_dict):
+  cat_form2 = row_dict.get('Categoría de la retroalimentación') or row_dict.get(
+      'categoria_retroalimentacion'
+  )
+  if cat_form2:
+    return mapear_categoria_segundo_formulario(cat_form2)
+
+  tipo_detectado = None
+  for k, v in row_dict.items():
+    k_low = str(k).lower()
+    if (
+        ('retroalimentaci' in k_low and 'positiva' in k_low)
+        or ('_1_retroalimentaci' in k_low)
+        or ('carga_1' in k_low)
+    ):
+      if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
+        try:
+          num_val = int(float(v))
+          if num_val > 0:
+            return '1. Retroalimentación Positiva (Felicitaciones)', num_val
+        except ValueError:
+          pass
+
+  for k, v in row_dict.items():
+    k_low = str(k).lower()
+    v_str = str(v).strip()
+    v_low = v_str.lower()
+    if 'tipopqrs' in k_low or 'tipo' in k_low or 'pqrs' in k_low:
+      if (
+          v_str == '5_'
+          or 'retroalimentaci' in v_low
+          or 'felicitacion' in v_low
+      ):
+        return '1. Retroalimentación Positiva (Felicitaciones)', 1
+
+    if 'reclamo' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '4. Reclamos Relacionadas a la Asistencia Humanitaria', 1
+    if 'queja' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return (
+          '5. Quejas (Explotación y Abuso Sexual / Código de Conducta / Fraude'
+          ' y Corrupción)',
+          1,
+      )
+    if (
+        '_2_solicitudes_de_asistencia' in k_low
+        and v_low not in ['', 'none', 'null', 'nan']
+    ):
+      return '2. Solicitud de Asistencia Humanitaria', 1
+    if 'petici_n_pregunta' in k_low and v_low not in ['', 'none', 'null', 'nan']:
+      return '3. Demanda de información de Asistencia Humanitaria', 1
+
+    if v_str == '2' or 'solicitud' in v_low:
+      tipo_detectado = '2. Solicitud de Asistencia Humanitaria'
+    elif 'informacion' in v_low or 'demanda' in v_low or '3.' in v_str:
+      tipo_detectado = '3. Demanda de información de Asistencia Humanitaria'
+
+  if tipo_detectado:
+    return tipo_detectado, 1
+  return '3. Demanda de información de Asistencia Humanitaria', 1
+
+
+def limpiar_colaborador(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Carlos Mesa'
+  t = str(texto).strip().lower()
+  if 'daisy' in t:
+    return 'Daisy Benites'
+  elif 'carlos' in t:
+    return 'Carlos Mesa'
+  return str(texto).strip().title()
+
+
+def limpiar_estatus_caso(texto):
+  if not texto or str(texto).lower() in ['none', 'null', '', 'nan']:
+    return 'Sin Especificar'
+  t = str(texto).strip().title()
+  if 'abiert' in t.lower():
+    return 'Abierto'
+  elif 'proceso' in t.lower() or 'pend' in t.lower():
+    return 'En Proceso'
+  elif 'cerrad' in t.lower() or 'atendid' in t.lower() or 'resuelt' in t.lower():
+    return 'Cerrado'
+  return t
+
+
+def extraer_estatus_caso_especifico(row_dict):
+  prioridades = ['estatus', 'seguimiento', 'resolucion', 'estado_caso']
+  for p in prioridades:
+    for key, value in row_dict.items():
+      if (
+          value is not None
+          and str(value).strip() != ''
+          and p in str(key).lower()
+      ):
+        return limpiar_estatus_caso(str(value))
+  return 'Sin Especificar'
+
+
+def extraer_fecha_aap(row_dict):
+  claves_fecha = [
+      'fecha de la retroalimentación',
+      'fecha',
+      'today',
+      'date',
+      '_submission_time',
+  ]
+  for cf in claves_fecha:
+    for key, value in row_dict.items():
+      if value and cf in str(key).lower():
+        v_str = str(value).strip()
+        if len(v_str) >= 8:
+          return v_str
+  return None
+
+
+# -----------------------------------------------------------------------------
+# CARGA DE DATOS DESDE KOBOTOOLBOX (AMBOS FORMULARIOS)
+# -----------------------------------------------------------------------------
+@st.cache_data(ttl=3600)
+def cargar_datos_kobo(
+    asset_id, token_aap, kobo_url='https://eu.kobotoolbox.org'
+):
+  headers = {'Authorization': f'Token {token_aap}'}
+  url = f'{kobo_url}/api/v2/assets/{asset_id}/data.json'
+  try:
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+      return []
+    return response.json().get('results', [])
+  except Exception:
+    return []
+
+
+@st.cache_data(ttl=3600)
+def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
+  data1 = cargar_datos_kobo(asset_id_aap, token_aap)
+  data2 = cargar_datos_kobo(asset_id_seg, token_aap)
+
+  all_raw_data = []
+  for r in data1:
+    r['_form_source'] = 'form1'
+    all_raw_data.append(r)
+  for r in data2:
+    r['_form_source'] = 'form2'
+    all_raw_data.append(r)
+
+  if not all_raw_data:
+    return pd.DataFrame()
+
+  aap_rows = []
+  for r in all_raw_data:
+    canal_raw = r.get(
+        'Mecanismo por el cual se recogió la retroalimentación'
+    ) or extraer_campo_dinamico(r, ['canal', 'medio'], 'Buzón')
+    tipo_pqrs, peso = obtener_peso_fila(r)
+
+    colab_raw = (
+        r.get('Nombre_y_apellido_de_r_que_recibe_el_PQRS')
+        or r.get('Nombre de la persona que recibe la retroalimentación')
+        or r.get('colaborador')
+        or 'carlos_mesa'
+    )
+    colab = limpiar_colaborador(colab_raw)
+
+    estado_caso = extraer_estatus_caso_especifico(r)
+    fecha_aap = extraer_fecha_aap(r)
+
+    proyecto_val = (
+        r.get('proyectoa')
+        or r.get('Proyecto')
+        or r.get('ong')
+        or r.get('socio')
+        or r.get('group_pqrs/socio')
+        or 'COOPI'
+    )
+    proyecto_val = str(proyecto_val).strip()
+    if proyecto_val.lower() in ['', 'none', 'null', 'nan']:
+      proyecto_val = 'COOPI'
+
+    discapacidad = extraer_valor_booleano(r, ['discapacidad', 'pcd'])
+    indigena = extraer_valor_booleano(r, ['indigena', 'etnia'])
+    lgbtiq = extraer_valor_booleano(r, ['lgbtiq', 'lgbt'])
+    embarazada = extraer_valor_booleano(r, ['embarazada', 'lactante'])
+
+    sexo_raw = str(
+        r.get('sexo')
+        or r.get('Sexo')
+        or r.get('group_pqrs/sexo')
+        or ''
+    ).lower().strip()
+    try:
+      edad = float(
+          r.get('edad') or r.get('Edad') or r.get('group_pqrs/edad') or 0
+      )
+    except (ValueError, TypeError):
+      edad = 0
+
+    es_nina = 1 if (edad < 18 and sexo_raw in ['femenino', 'f', 'mujer']) else 0
+    es_nino = 1 if (edad < 18 and sexo_raw in ['masculino', 'm', 'hombre']) else 0
+
+    estado_geo_val = r.get('Estado') or extraer_campo_dinamico(
+        r, ['estado_geo', 'Estado'], 'General'
+    )
+
+    aap_rows.append({
+        '_id': r.get('_id'),
+        'Canal': limpiar_canal(canal_raw),
+        'Tipo_PQRS': tipo_pqrs,
+        'Colaborador': colab,
+        'Estado_Caso': estado_caso,
+        'Fecha': fecha_aap,
+        'Discapacidad': discapacidad,
+        'Indigena': indigena,
+        'LGBTIQ': lgbtiq,
+        'Embarazada': embarazada,
+        'Es_Nina': es_nina,
+        'Es_Nino': es_nino,
+        'Proyecto': proyecto_val,
+        'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+    })
+
+    for _ in range(peso - 1):
+      aap_rows.append({
+          '_id': r.get('_id'),
+          'Canal': limpiar_canal(canal_raw),
+          'Tipo_PQRS': tipo_pqrs,
+          'Colaborador': colab,
+          'Estado_Caso': 'Sin Especificar',
+          'Fecha': fecha_aap,
+          'Discapacidad': discapacidad,
+          'Indigena': indigena,
+          'LGBTIQ': lgbtiq,
+          'Embarazada': embarazada,
+          'Es_Nina': es_nina,
+          'Es_Nino': es_nino,
+          'Proyecto': proyecto_val,
+          'Estado_Geo': MAPA_ESTADOS.get(estado_geo_val, estado_geo_val),
+      })
+
+  df_aap = pd.DataFrame(aap_rows)
+  if not df_aap.empty and 'Fecha' in df_aap.columns:
+    df_aap['Fecha_DT'] = pd.to_datetime(df_aap['Fecha'], errors='coerce')
+    df_aap = df_aap.sort_values(by='Fecha_DT')
+    df_aap['Mes_Reporte'] = df_aap['Fecha_DT'].apply(
+        lambda x: (
+            f'{x.year} - {MESES_ES.get(x.month, "")}'
+            if pd.notnull(x)
+            else 'Sin Fecha'
+        )
+    )
+  else:
+    df_aap['Mes_Reporte'] = 'Sin Fecha'
+  return df_aap
+
+
+@st.cache_data(ttl=3600)
+def cargar_datos_indicadores_aap(
+    asset_id_ind, token_ind, kobo_url='https://eu.kobotoolbox.org'
+):
+  headers = {'Authorization': f'Token {token_ind}'}
+  url = f'{kobo_url}/api/v2/assets/{asset_id_ind}/data.json'
+  try:
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+      return pd.DataFrame()
+    data = response.json().get('results', [])
+    if not data:
+      return pd.DataFrame()
+    return pd.DataFrame(data)
+  except Exception:
+    return pd.DataFrame()
+
+
+# Credenciales y IDs de KoboToolbox
+KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
+ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'
+ASSET_ID_SEGUIMIENTO = 'aav4FtiNC62seD5LAaJJJJ'
+ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'
+
+df_aap_raw = cargar_todos_datos_aap(ASSET_ID_AAP, ASSET_ID_SEGUIMIENTO, KOBO_TOKEN)
+df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
+
+# -----------------------------------------------------------------------------
+# FILTROS EN LA BARRA LATERAL
+# -----------------------------------------------------------------------------
+st.sidebar.header('Filtros AAP - COOPI')
+
+if st.sidebar.button('🔄 Actualizar Datos'):
+  st.cache_data.clear()
+  st.rerun()
+
+st.sidebar.markdown('---')
+
+proyectos_disp = ['TODOS'] + sorted(
+    [x for x in df_aap_raw['Proyecto'].dropna().unique() if x]
+)
+proyecto_sel = st.sidebar.selectbox('Proyecto:', proyectos_disp, index=0)
+
+meses_ordenados = sorted(
+    [m for m in df_aap_raw['Mes_Reporte'].unique() if m != 'Sin Fecha']
+)
+if 'Sin Fecha' in df_aap_raw['Mes_Reporte'].values:
+  meses_ordenados.append('Sin Fecha')
+meses_disp = ['Todos'] + meses_ordenados
+mes_sel = st.sidebar.selectbox('Mes del Reporte:', meses_disp)
+
+estados_disp = ['Todos'] + sorted(
+    [x for x in df_aap_raw['Estado_Geo'].dropna().unique() if x]
+)
+estado_sel = st.sidebar.selectbox('Estado Geográfico:', estados_disp)
+
+lista_poblacion_interes = [
+    'TODOS',
+    'Personas con Discapacidad',
+    'Niñas',
+    'Niños',
+    'Comunidad Indígena',
+    'LGBTIQ+',
+    'Embarazadas / Lactantes',
+]
+poblacion_sel = st.sidebar.selectbox('Población de Interés:', lista_poblacion_interes)
+
+# APLICAR FILTROS AAP (PQRS)
+df_aap_filtered = df_aap_raw.copy()
+if proyecto_sel != 'TODOS':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Proyecto'] == proyecto_sel]
+if mes_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Mes_Reporte'] == mes_sel]
+if estado_sel != 'Todos':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Estado_Geo'] == estado_sel]
+
+if poblacion_sel == 'Personas con Discapacidad':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Discapacidad'] == 1]
+elif poblacion_sel == 'Niñas':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nina'] == 1]
+elif poblacion_sel == 'Niños':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Es_Nino'] == 1]
+elif poblacion_sel == 'Comunidad Indígena':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Indigena'] == 1]
+elif poblacion_sel == 'LGBTIQ+':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['LGBTIQ'] == 1]
+elif poblacion_sel == 'Embarazadas / Lactantes':
+  df_aap_filtered = df_aap_filtered[df_aap_filtered['Embarazada'] == 1]
+
+total_pqrs = len(df_aap_filtered)
+pct_meta_pqrs = (total_pqrs / META_5_PORCIENTO) * 100
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 1: MÉTRICAS GENERALES DE PQRS
+# -----------------------------------------------------------------------------
+titulo_resumen = (
+    f'Resumen de Rendición de Cuentas - {proyecto_sel}'
+    if proyecto_sel != 'TODOS'
+    else 'Resumen de Rendición de Cuentas - General'
+)
+st.subheader(titulo_resumen)
+
+m_c1, m_c2, m_c3 = st.columns(3)
+m_c1.metric('Total PQRS Registradas', f'{total_pqrs:,}')
+m_c2.metric('Meta 5% (Beneficiarios)', f'{int(META_5_PORCIENTO):,}')
+m_c3.metric('% Cumplimiento Meta PQRS', f'{pct_meta_pqrs:.2f}%')
+
+st.markdown('---')
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 2: GRÁFICOS DE PQRS
+# -----------------------------------------------------------------------------
+aap_c1, aap_c2 = st.columns(2)
+
+# 1. Canal más utilizado (Gráfico de Torta / Donut)
+with aap_c1:
+  st.markdown('### Canal más utilizado por los participantes')
+  if total_pqrs > 0 and 'Canal' in df_aap_filtered.columns:
+    df_canal = df_aap_filtered['Canal'].value_counts().reset_index()
+    df_canal.columns = ['Canal', 'Cantidad']
+
+    fig_canal = px.pie(
+        df_canal,
+        names='Canal',
+        values='Cantidad',
+        hole=0.4,
+        color_discrete_sequence=PALETA_COOPI,
+    )
+    fig_canal.update_traces(
+        textinfo='percent+value', textposition='outside', textfont=dict(size=14)
+    )
+    fig_canal.update_layout(
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.3,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=12),
+        ),
+        font=font_layout,
+        height=450,
+        margin=dict(l=10, r=10, t=10, b=80),
+    )
+    st.plotly_chart(fig_canal, width='stretch')
+  else:
+    st.info('No hay datos de canales registrados.')
+
+# 2. Tipos de PQRS Recibidos (Gráfico de Barras Horizontales)
+with aap_c2:
+  st.markdown('### Tipos de PQRS Recibidos')
+  if total_pqrs > 0 and 'Tipo_PQRS' in df_aap_filtered.columns:
+    df_tipo = df_aap_filtered['Tipo_PQRS'].value_counts().reset_index()
+    df_tipo.columns = ['Tipo_PQRS', 'Cantidad']
+    df_tipo = df_tipo.sort_values(by='Cantidad', ascending=True)
+    df_tipo['Porcentaje'] = (df_tipo['Cantidad'] / total_pqrs) * 100
+    df_tipo['Etiqueta'] = calcular_etiquetas_con_porcentaje(
+        df_tipo['Cantidad'], total_pqrs, decimales=1
+    )
+
+    fig_tipo = px.bar(
+        df_tipo,
+        y='Tipo_PQRS',
+        x='Cantidad',
+        orientation='h',
+        text='Etiqueta',
+        color='Tipo_PQRS',
+        color_discrete_sequence=PALETA_COOPI,
+    )
+    fig_tipo.update_traces(
+        textposition='outside', textfont=dict(color='#333333', size=13)
+    )
+    fig_tipo.update_layout(
+        xaxis_title='Número de PQRS',
+        yaxis=dict(showticklabels=False, title=''),
+        showlegend=True,
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=-0.35,
+            xanchor='center',
+            x=0.5,
+            font=dict(size=11),
+        ),
+        font=font_layout,
+        height=480,
+        margin=dict(l=10, r=60, t=10, b=100),
+    )
+    st.plotly_chart(fig_tipo, width='stretch')
+  else:
+    st.info('No hay datos de tipos de PQRS.')
+
+st.markdown('<br>', unsafe_allow_html=True)
+
+aap_c3, aap_c4 = st.columns(2)
+
+with aap_c3:
+  st.markdown('### Participantes Atendidos por Mes')
+  if total_pqrs > 0 and 'Mes_Reporte' in df_aap_filtered.columns:
+    df_mes_aap = (
+        df_aap_filtered.groupby('Mes_Reporte', sort=False)
+        .size()
+        .reset_index(name='Atendidos')
+    )
+    df_mes_aap['Porcentaje'] = (df_mes_aap['Atendidos'] / total_pqrs) * 100
+    df_mes_aap['Etiqueta'] = calcular_etiquetas_con_porcentaje(
+        df_mes_aap['Atendidos'], total_pqrs, decimales=0
+    )
+
+    fig_mes_aap = px.area(
+        df_mes_aap,
+        x='Mes_Reporte',
+        y='Atendidos',
+        text='Etiqueta',
+        color_discrete_sequence=[COLOR_VERDE_COOPI],
+    )
+    fig_mes_aap.update_traces(
+        textposition='top center', textfont=dict(size=13, color='#333333')
+    )
+    fig_mes_aap.update_layout(
+        xaxis_title='Mes',
+        yaxis_title='PQRS Recibidos',
+        font=font_layout,
+        height=320,
+        margin=dict(l=20, r=30, t=35, b=10),
+    )
+    st.plotly_chart(fig_mes_aap, width='stretch')
+  else:
+    st.info('No hay datos de temporalidad.')
+
+with aap_c4:
+  st.markdown('### Seguimiento a los Casos')
+  if total_pqrs > 0 and 'Estado_Caso' in df_aap_filtered.columns:
+    df_est_aap = df_aap_filtered[
+        df_aap_filtered['Estado_Caso'].isin(['Abierto', 'Cerrado', 'En Proceso'])
+    ]
+    df_est_aap = df_est_aap['Estado_Caso'].value_counts().reset_index()
+    df_est_aap.columns = ['Estado', 'Cantidad']
+
+    total_est_val = df_est_aap['Cantidad'].sum() if not df_est_aap.empty else 1
+    df_est_aap['Porcentaje'] = (df_est_aap['Cantidad'] / total_est_val) * 100
+    df_est_aap['Etiqueta'] = calcular_etiquetas_con_porcentaje(
+        df_est_aap['Cantidad'], total_est_val, decimales=0
+    )
+
+    MAPA_COLORES_ESTADO = {
+        'Abierto': COLOR_NARANJA_ABIERTO,
+        'En Proceso': COLOR_VERDE_COOPI,
+        'Cerrado': COLOR_AZUL_COOPI,
+    }
+
+    fig_est_aap = px.bar(
+        df_est_aap,
+        x='Estado',
+        y='Cantidad',
+        text='Etiqueta',
+        color='Estado',
+        color_discrete_map=MAPA_COLORES_ESTADO,
+    )
+    fig_est_aap.update_traces(
+        textposition='outside', textfont=dict(color='#333333', size=14)
+    )
+    fig_est_aap.update_layout(
+        xaxis_title='Estado de Resolución',
+        yaxis_title='Casos',
+        showlegend=False,
+        font=font_layout,
+        height=320,
+        margin=dict(l=10, r=10, t=10, b=10),
+    )
+    st.plotly_chart(fig_est_aap, width='stretch')
+  else:
+    st.info('No hay datos de seguimiento de casos.')
+
+st.markdown('---')
+
+# -----------------------------------------------------------------------------
+# SECCIÓN 3: INDICADORES AAP (EVALUACIÓN DE SATISFACCIÓN)
+# -----------------------------------------------------------------------------
+st.markdown(
+    "<h2 style='color: #0072CE;'>Indicadores de Satisfacción y Conocimiento"
+    ' AAP</h2>',
+    unsafe_allow_html=True,
+)
+st.caption('Resultados de encuestas de retroalimentación y satisfacción')
+
+if not df_eval_aap.empty:
+  df_eval_filtered = df_eval_aap.copy()
+  tot_part_eval = len(df_eval_filtered)
+  pct_meta_eval = (tot_part_eval / META_5_PORCIENTO) * 100
+
+  col_ind_tot, col_ind_meta = st.columns([1, 1])
+  col_ind_tot.metric('Total Evaluaciones AAP', f'{tot_part_eval:,}')
+  col_ind_meta.metric(
+      '% Meta Evaluaciones (5% de 32 mil)', f'{pct_meta_eval:.2f}%'
+  )
+
+  st.markdown('<br>', unsafe_allow_html=True)
+
+  row1_c1, row1_c2 = st.columns(2)
+
+  # 1. Satisfacción
+  with row1_c1:
+    st.markdown('### Satisfacción de los participantes')
+    sat_col = [c for c in df_eval_filtered.columns if 'satisfac' in c.lower()]
+    df_sat = (
+        df_eval_filtered[sat_col[0]].value_counts().reset_index()
+        if sat_col
+        else pd.DataFrame()
+    )
+    if not df_sat.empty and df_sat.shape[1] >= 2:
+      df_sat.columns = ['Nivel', 'Cantidad']
+      fig_sat = px.pie(
+          df_sat,
+          names='Nivel',
+          values='Cantidad',
+          hole=0.4,
+          color_discrete_sequence=PALETA_COOPI,
+      )
+      fig_sat.update_traces(
+          textinfo='percent+value', textposition='outside', textfont=dict(size=14)
+      )
+      fig_sat.update_layout(
+          showlegend=True,
+          legend=dict(
+              orientation='h',
+              yanchor='top',
+              y=-0.35,
+              xanchor='center',
+              x=0.5,
+              font=dict(size=12),
+          ),
+          font=font_layout,
+          height=450,
+          margin=dict(l=10, r=10, t=10, b=80),
+      )
+      st.plotly_chart(fig_sat, width='stretch')
+    else:
+      st.info('No hay registros de satisfacción disponibles.')
+
+  # 2. Conocimiento del comportamiento esperado
+  with row1_c2:
+    st.markdown('### Conocimiento del comportamiento esperado')
+    comp_col = [
+        c
+        for c in df_eval_filtered.columns
+        if 'comportamiento' in c.lower() or 'esperado' in c.lower()
+    ]
+    df_comp = (
+        df_eval_filtered[comp_col[0]].value_counts().reset_index()
+        if comp_col
+        else pd.DataFrame()
+    )
+    if not df_comp.empty and df_comp.shape[1] >= 2:
+      df_comp.columns = ['Respuesta', 'Cantidad']
+      total_comp = df_comp['Cantidad'].sum()
+      df_comp['Etiqueta'] = calcular_etiquetas_con_porcentaje(
+          df_comp['Cantidad'], total_comp, decimales=1
+      )
+
+      fig_comp = px.bar(
+          df_comp,
+          x='Respuesta',
+          y='Cantidad',
+          text='Etiqueta',
+          color='Respuesta',
+          color_discrete_map={
+              'Sí': COLOR_VERDE_COOPI,
+              'Si': COLOR_VERDE_COOPI,
+              'No': COLOR_AZUL_COOPI,
+          },
+      )
+      fig_comp.update_traces(
+          textposition='outside', textfont=dict(color='#333333', size=14)
+      )
+      fig_comp.update_layout(
+          showlegend=False,
+          font=font_layout,
+          height=360,
+          margin=dict(l=10, r=10, t=10, b=10),
+      )
+      st.plotly_chart(fig_comp, width='stretch')
+    else:
+      st.info('No hay registros de comportamiento disponibles.')
+else:
+  st.info('Esperando registros del formulario de Indicadores AAP.')

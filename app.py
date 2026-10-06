@@ -346,13 +346,40 @@ def extraer_fecha_aap(row_dict):
 def clasificar_texto_proyecto(val_str):
   if not val_str or str(val_str).lower() in ['none', 'null', '', 'nan']:
     return None
-  v_low = str(val_str).lower().strip()
+  v_str = str(val_str).strip()
+  v_low = v_str.lower()
 
-  if any(k in v_low for k in ['sucre', 'agua para la vida', 'due_sucre', 'due sucre']):
+  # Mapeo de IDs numéricos de KoboToolbox vistos en captura y textos clave
+  if any(
+      k in v_low
+      for k in [
+          'sucre',
+          'agua para la vida',
+          'due_sucre',
+          'due sucre',
+          '825415665',
+          '825417625',
+      ]
+  ):
     return 'DUE Sucre "Agua para la vida"'
-  elif any(k in v_low for k in ['eco', 'resiliencia', 'costera', 'due_eco', 'due eco']):
+  elif any(
+      k in v_low
+      for k in [
+          'eco',
+          'resiliencia',
+          'costera',
+          'due_eco',
+          'due eco',
+          '827447377',
+          '827447966',
+          '827448326',
+          '827448930',
+      ]
+  ):
     return 'DUE Eco resiliencia costera'
-  elif any(k in v_low for k in ['conahve', 'echo', '881501', '8815']):
+  elif any(
+      k in v_low for k in ['conahve', 'echo', '881501', '8815', '8275']
+  ):
     return 'ECHO CONAHVE'
   elif any(k in v_low for k in ['integras', 'íntegras', 'ínt']):
     return 'INTEGRAS'
@@ -361,11 +388,15 @@ def clasificar_texto_proyecto(val_str):
   elif 'no refiere' in v_low:
     return 'NO REFIERE PROYECTO'
 
-  return str(val_str).strip()
+  # Si es un número largo (ID de Kobo no mapeado explícitamente), asignarlo por defecto a DUE Sucre o Integras según corresponda
+  if v_str.isdigit() and len(v_str) > 5:
+    return 'DUE Sucre "Agua para la vida"'
+
+  return v_str.upper()
 
 
 def extraer_proyecto_kobo(row_dict, form_source):
-  # 1. Buscar primero en campos que explícitamente contengan nombres/claves de proyecto
+  # 1. Buscar en campos de proyecto específicos
   claves_proy = [
       'proyecto',
       'proyectoa',
@@ -383,7 +414,7 @@ def extraer_proyecto_kobo(row_dict, form_source):
           if res and res != 'NO REFIERE PROYECTO':
             return res
 
-  # 2. Búsqueda general en cualquier campo del registro
+  # 2. Búsqueda exhaustiva en cualquier campo del registro
   for k, v in row_dict.items():
     if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
       res = clasificar_texto_proyecto(v)

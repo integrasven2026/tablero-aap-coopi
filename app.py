@@ -345,11 +345,15 @@ def extraer_fecha_aap(row_dict):
 
 def limpiar_nombre_proyecto(val, form_source):
   if not val or str(val).lower() in ['none', 'null', '', 'nan']:
-    return 'COOPI General'
+    if form_source == 'form2':
+      return 'Íntegras'
+    return 'DUE Sucre "Agua para la vida"'
+
   s = str(val).strip()
   s_low = s.lower()
+
   if form_source == 'form2':
-    if 'integras' in s_low:
+    if 'integras' in s_low or 'íntegras' in s_low or 'ínt' in s_low:
       return 'Íntegras'
     elif 'aics' in s_low:
       return 'AICS'
@@ -381,7 +385,7 @@ def extraer_proyecto_kobo(row_dict, form_source):
           return limpiar_nombre_proyecto(v, form_source)
   if form_source == 'form2':
     return 'Íntegras'
-  return 'COOPI General'
+  return 'DUE Sucre "Agua para la vida"'
 
 
 def extraer_campo_dinamico(row_dict, palabras_clave, valor_defecto='General'):
@@ -419,7 +423,7 @@ def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
   data1 = cargar_datos_kobo(asset_id_aap, token_aap)  # Formulario Seguimiento AAP
   data2 = cargar_datos_kobo(
       asset_id_seg, token_aap
-  )  # Formulario 6 de Registros de PQRS (Íntegras y AICS)
+  )  # Formulario de Registros de PQRS (Íntegras y AICS)
 
   all_raw_data = []
   for r in data1:
@@ -780,141 +784,4 @@ with aap_c4:
     MAPA_COLORES_ESTADO = {
         'Abierto': COLOR_NARANJA_ABIERTO,
         'En Proceso': COLOR_VERDE_COOPI,
-        'Cerrado': COLOR_AZUL_COOPI,
-    }
-
-    fig_est_aap = px.bar(
-        df_est_aap,
-        x='Estado',
-        y='Cantidad',
-        text='Etiqueta',
-        color='Estado',
-        color_discrete_map=MAPA_COLORES_ESTADO,
-    )
-    fig_est_aap.update_traces(
-        textposition='outside', textfont=dict(color='#333333', size=14)
-    )
-    fig_est_aap.update_layout(
-        xaxis_title='Estado de Resolución',
-        yaxis_title='Casos',
-        showlegend=False,
-        font=font_layout,
-        height=320,
-        margin=dict(l=10, r=10, t=10, b=10),
-    )
-    st.plotly_chart(fig_est_aap, width='stretch')
-  else:
-    st.info('No hay datos de seguimiento de casos.')
-
-st.markdown('---')
-
-# -----------------------------------------------------------------------------
-# SECCIÓN 3: INDICADORES AAP (EVALUACIÓN DE SATISFACCIÓN)
-# -----------------------------------------------------------------------------
-st.markdown(
-    "<h2 style='color: #0072CE;'>Indicadores de Satisfacción y Conocimiento"
-    ' AAP</h2>',
-    unsafe_allow_html=True,
-)
-st.caption('Resultados de encuestas de retroalimentación y satisfacción')
-
-if not df_eval_aap.empty:
-  df_eval_filtered = df_eval_aap.copy()
-  tot_part_eval = len(df_eval_filtered)
-  pct_meta_eval = (tot_part_eval / META_5_PORCIENTO) * 100
-
-  col_ind_tot, col_ind_meta = st.columns([1, 1])
-  col_ind_tot.metric('Total Evaluaciones AAP', f'{tot_part_eval:,}')
-  col_ind_meta.metric(
-      '% Meta Evaluaciones (5% de 32 mil)', f'{pct_meta_eval:.2f}%'
-  )
-
-  st.markdown('<br>', unsafe_allow_html=True)
-
-  row1_c1, row1_c2 = st.columns(2)
-
-  # 1. Satisfacción
-  with row1_c1:
-    st.markdown('### Satisfacción de los participantes')
-    sat_col = [c for c in df_eval_filtered.columns if 'satisfac' in c.lower()]
-    df_sat = (
-        df_eval_filtered[sat_col[0]].value_counts().reset_index()
-        if sat_col
-        else pd.DataFrame()
-    )
-    if not df_sat.empty and df_sat.shape[1] >= 2:
-      df_sat.columns = ['Nivel', 'Cantidad']
-      fig_sat = px.pie(
-          df_sat,
-          names='Nivel',
-          values='Cantidad',
-          hole=0.4,
-          color_discrete_sequence=PALETA_COOPI,
-      )
-      fig_sat.update_traces(
-          textinfo='percent+value', textposition='outside', textfont=dict(size=14)
-      )
-      fig_sat.update_layout(
-          showlegend=True,
-          legend=dict(
-              orientation='h',
-              yanchor='top',
-              y=-0.35,
-              xanchor='center',
-              x=0.5,
-              font=dict(size=12),
-          ),
-          font=font_layout,
-          height=450,
-          margin=dict(l=10, r=10, t=10, b=80),
-      )
-      st.plotly_chart(fig_sat, width='stretch')
-    else:
-      st.info('No hay registros de satisfacción disponibles.')
-
-  # 2. Conocimiento del comportamiento esperado
-  with row1_c2:
-    st.markdown('### Conocimiento del comportamiento esperado')
-    comp_col = [
-        c
-        for c in df_eval_filtered.columns
-        if 'comportamiento' in c.lower() or 'esperado' in c.lower()
-    ]
-    df_comp = (
-        df_eval_filtered[comp_col[0]].value_counts().reset_index()
-        if comp_col
-        else pd.DataFrame()
-    )
-    if not df_comp.empty and df_comp.shape[1] >= 2:
-      df_comp.columns = ['Respuesta', 'Cantidad']
-      total_comp = df_comp['Cantidad'].sum()
-      df_comp['Etiqueta'] = calcular_etiquetas_con_porcentaje(
-          df_comp['Cantidad'], total_comp, decimales=1
-      )
-
-      fig_comp = px.bar(
-          df_comp,
-          x='Respuesta',
-          y='Cantidad',
-          text='Etiqueta',
-          color='Respuesta',
-          color_discrete_map={
-              'Sí': COLOR_VERDE_COOPI,
-              'Si': COLOR_VERDE_COOPI,
-              'No': COLOR_AZUL_COOPI,
-          },
-      )
-      fig_comp.update_traces(
-          textposition='outside', textfont=dict(color='#333333', size=14)
-      )
-      fig_comp.update_layout(
-          showlegend=False,
-          font=font_layout,
-          height=360,
-          margin=dict(l=10, r=10, t=10, b=10),
-      )
-      st.plotly_chart(fig_comp, width='stretch')
-    else:
-      st.info('No hay registros de comportamiento disponibles.')
-else:
-  st.info('Esperando registros del formulario de Indicadores AAP.')
+        'Cerrado

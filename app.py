@@ -343,7 +343,28 @@ def extraer_fecha_aap(row_dict):
   return None
 
 
-def extraer_proyecto_kobo(row_dict):
+def limpiar_nombre_proyecto(val, form_source):
+  if not val or str(val).lower() in ['none', 'null', '', 'nan']:
+    return 'COOPI General'
+  s = str(val).strip()
+  s_low = s.lower()
+  if form_source == 'form2':
+    if 'integras' in s_low:
+      return 'Íntegras'
+    elif 'aics' in s_low:
+      return 'AICS'
+    return 'Íntegras'
+  else:
+    if 'agua para la vida' in s_low or 'sucre' in s_low:
+      return 'DUE Sucre "Agua para la vida"'
+    elif 'eco resiliencia' in s_low or 'costera' in s_low:
+      return 'DUE Eco resiliencia costera'
+    elif 'conahve' in s_low or 'echo' in s_low:
+      return 'ECHO CONAHVE'
+    return s
+
+
+def extraer_proyecto_kobo(row_dict, form_source):
   claves_proy = [
       'proyecto',
       'proyectoa',
@@ -357,7 +378,9 @@ def extraer_proyecto_kobo(row_dict):
     for k, v in row_dict.items():
       if v is not None and str(v).strip() not in ['', 'none', 'null', 'nan']:
         if p in str(k).lower():
-          return str(v).strip()
+          return limpiar_nombre_proyecto(v, form_source)
+  if form_source == 'form2':
+    return 'Íntegras'
   return 'COOPI General'
 
 
@@ -393,8 +416,10 @@ def cargar_datos_kobo(
 
 @st.cache_data(ttl=3600)
 def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
-  data1 = cargar_datos_kobo(asset_id_aap, token_aap)
-  data2 = cargar_datos_kobo(asset_id_seg, token_aap)
+  data1 = cargar_datos_kobo(asset_id_aap, token_aap)  # Formulario Seguimiento AAP
+  data2 = cargar_datos_kobo(
+      asset_id_seg, token_aap
+  )  # Formulario 6 de Registros de PQRS (Íntegras y AICS)
 
   all_raw_data = []
   for r in data1:
@@ -409,6 +434,7 @@ def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
 
   aap_rows = []
   for r in all_raw_data:
+    form_src = r.get('_form_source', 'form1')
     canal_raw = r.get(
         'Mecanismo por el cual se recogió la retroalimentación'
     ) or extraer_canal_dinamico(r)
@@ -425,7 +451,7 @@ def cargar_todos_datos_aap(asset_id_aap, asset_id_seg, token_aap):
     estado_caso = extraer_estatus_caso_especifico(r)
     fecha_aap = extraer_fecha_aap(r)
 
-    proyecto_val = extraer_proyecto_kobo(r)
+    proyecto_val = extraer_proyecto_kobo(r, form_src)
 
     discapacidad = extraer_valor_booleano(r, ['discapacidad', 'pcd'])
     indigena = extraer_valor_booleano(r, ['indigena', 'etnia'])
@@ -523,9 +549,11 @@ def cargar_datos_indicadores_aap(
 
 # Credenciales y IDs de KoboToolbox
 KOBO_TOKEN = '5618d295bdaac1c331e0395a3ac0699594c9664c'
-ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'
-ASSET_ID_SEGUIMIENTO = 'aav4FtiNC62seD5LAaJJJJ'
-ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'
+ASSET_ID_AAP = 'aRbFg8ig22Ts5JFFvsWNaE'  # Formulario 1: Seguimiento AAP
+ASSET_ID_SEGUIMIENTO = (  # Formulario 2: Formulario 6 de Registros de PQRS (Íntegras y AICS)
+    'aav4FtiNC62seD5LAaJJJJ'
+)
+ASSET_ID_IND_AAP = 'aMYumvwLQ4rQeq5iFDSboS'  # Indicadores AAP
 
 df_aap_raw = cargar_todos_datos_aap(ASSET_ID_AAP, ASSET_ID_SEGUIMIENTO, KOBO_TOKEN)
 df_eval_aap = cargar_datos_indicadores_aap(ASSET_ID_IND_AAP, KOBO_TOKEN)
